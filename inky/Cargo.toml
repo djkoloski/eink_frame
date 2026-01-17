@@ -1,0 +1,14 @@
+[package]
+name = "inky"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+
+[target.'cfg(hardware)'.dependencies]
+gpiod.workspace = true
+spidev.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(hardware)'] }

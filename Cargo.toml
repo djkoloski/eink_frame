@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "emulator",
+    "inky",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+anyhow = "1"
+gpiod = "0.3"
+inky = { path = "inky" }
+softbuffer = "0.4"
+spidev = "0.7"
+winit = "0.30"
+
+[package]
+name = "eink_frame"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+inky.workspace = true
