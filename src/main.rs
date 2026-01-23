@@ -1,38 +1,57 @@
+mod affirmations;
+mod calendar;
+mod status;
+mod weather;
+
 use core::time::Duration;
-use std::thread;
 
 use anyhow::Result;
-use inky::{Color, Inky};
+use inky::Inky;
+use inky_graphics::Graphics;
+use reqwest::Client;
+use serde::Deserialize;
+use tokio::{fs, time::sleep};
 
-fn main() -> Result<()> {
+#[derive(Deserialize)]
+struct Config {
+    update_interval_secs: f64,
+    graphics: inky_graphics::Config,
+    weather: weather::Config,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let config = fs::read_to_string("config.json").await?;
+    let config = serde_json::from_str::<Config>(&config)?;
+
+    let client = Client::new();
     let mut inky = Inky::new()?;
+    let graphics = Graphics::new(&config.graphics)?;
 
-    for i in 0.. {
-        let colors = [
-            Color::Black,
-            Color::Yellow,
-            Color::Red,
-            Color::Blue,
-            Color::Green,
-        ];
-        let size = 40;
-        for y in 0..inky.resolution_y() {
-            for x in 0..inky.resolution_x() {
-                let lx = ((x % size) as f32 / size as f32 - 0.5f32) * 2.0f32;
-                let ly = ((y % size) as f32 / size as f32 - 0.5f32) * 2.0f32;
+    loop {
+        let status = status::update().await?;
+        let weather = weather::update(&client, &config.weather).await?;
 
-                let mut color = Color::White;
-                if (lx * lx + ly * ly).sqrt() < 1.0 {
-                    color = colors[(x / size + y / size + i) % colors.len()];
-                }
-                inky.set_pixel(x, y, color);
-            }
-        }
+        render(&mut inky, &graphics, &status, &weather).await?;
 
-        inky.show()?;
-
-        thread::sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs_f64(config.update_interval_secs)).await;
     }
+}
+
+async fn render(
+    inky: &mut Inky,
+    graphics: &Graphics,
+    status: &status::Data,
+    weather: &weather::Data,
+) -> Result<()> {
+    inky.clear();
+
+    status::render(inky, graphics, status);
+    calendar::render(inky, graphics);
+    weather::render(inky, graphics, weather);
+    affirmations::render(inky, graphics);
+
+    inky.show()?;
 
     Ok(())
 }

@@ -13,7 +13,7 @@ use winit::{
     dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle},
-    window::{Window, WindowId},
+    window::{Window, WindowButtons, WindowId},
 };
 
 const RESOLUTION_X: usize = 800;
@@ -54,7 +54,10 @@ impl ApplicationHandler for App {
                             RESOLUTION_X as f64,
                             RESOLUTION_Y as f64,
                         ))
-                        .with_resizable(false),
+                        .with_resizable(false)
+                        .with_enabled_buttons(
+                            WindowButtons::CLOSE | WindowButtons::MINIMIZE,
+                        ),
                 )
                 .unwrap(),
         );

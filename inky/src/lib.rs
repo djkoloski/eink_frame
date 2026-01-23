@@ -18,6 +18,26 @@ pub enum Color {
     White = 1,
     Yellow = 2,
     Red = 3,
-    Blue = 5,
-    Green = 6,
+    Green = 5,
+    Blue = 6,
+}
+
+impl Inky {
+    pub fn clear(&mut self) {
+        for y in 0..self.resolution_y() {
+            for x in 0..self.resolution_x() {
+                self.set_pixel(x, y, Color::White);
+            }
+        }
+    }
+
+    pub fn set(&mut self, x: i32, y: i32, color: Color) {
+        if x >= 0
+            && (x as usize) < self.resolution_x()
+            && y >= 0
+            && (y as usize) < self.resolution_y()
+        {
+            self.set_pixel(x as usize, y as usize, color);
+        }
+    }
 }

@@ -5,6 +5,8 @@ use anyhow::Result;
 use gpiod::{Bias, Chip, Input, Lines, Options, Output};
 use spidev::{Spidev, SpidevOptions, SpidevTransfer};
 
+use crate::{Color, RESOLUTION_X, RESOLUTION_Y};
+
 const RESET_PIN: u32 = 27;
 const BUSY_PIN: u32 = 17;
 const DC_PIN: u32 = 22;

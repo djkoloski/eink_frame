@@ -1,0 +1,10 @@
+{
+    "update_interval_secs": 3600.0,
+    "graphics": {
+        "resources": "resources/graphics.rkyv"
+    },
+    "weather": {
+        "latitude": "42.753222908572496",
+        "longitude": "-73.65671812298604"
+    }
+}
