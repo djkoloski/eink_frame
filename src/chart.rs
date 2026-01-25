@@ -8,7 +8,6 @@ pub struct Chart {
     pub y: i32,
     pub width: i32,
     pub height: i32,
-    pub min_pixels_per_interval: i32,
 }
 
 pub enum Side {
@@ -17,8 +16,13 @@ pub enum Side {
 }
 
 pub enum Bounds {
-    Margin(f32),
-    Constant(RangeInclusive<f32>),
+    Dynamic {
+        min_pixels_per_interval: i32,
+    },
+    Constant {
+        range: RangeInclusive<f32>,
+        granularity: i32,
+    },
 }
 
 pub struct Graph {
@@ -38,23 +42,30 @@ impl Chart {
         format: impl Fn(f32) -> String,
         color: Color,
     ) {
-        let range = data.clone().fold(f32::MAX..=f32::MIN, |range, value| {
-            range.start().min(value.floor())..=range.end().max(value.ceil())
-        });
-        let range_size = range.end() - range.start();
-        let bounds = match &graph.bounds {
-            Bounds::Margin(margin) => {
-                let m = range_size * margin;
-                (range.start() - m)..=(range.end() + m)
+        let (bounds, granularity) = match &graph.bounds {
+            Bounds::Dynamic {
+                min_pixels_per_interval,
+            } => {
+                let bounds =
+                    data.clone().fold(f32::MAX..=f32::MIN, |range, value| {
+                        range.start().min(value.floor())
+                            ..=range.end().max(value.ceil())
+                    });
+                let bounds_size = bounds.end() - bounds.start();
+
+                let pixels_per_interval = (self.height as f32 / bounds_size)
+                    .max(*min_pixels_per_interval as f32);
+                let intervals =
+                    (self.height as f32 / pixels_per_interval).floor();
+                let granularity = (bounds_size / intervals).ceil() as i32;
+
+                (bounds, granularity)
             }
-            Bounds::Constant(bounds) => bounds.clone(),
+            Bounds::Constant { range, granularity } => {
+                (range.clone(), *granularity)
+            }
         };
         let bounds_size = bounds.end() - bounds.start();
-
-        let pixels_per_interval = (self.height as f32 / bounds_size)
-            .max(self.min_pixels_per_interval as f32);
-        let intervals = (self.height as f32 / pixels_per_interval).floor();
-        let granularity = (bounds_size / intervals).floor() as i32;
 
         let (tick_x, label_x, alignment) = match graph.side {
             Side::Left => {
@@ -67,8 +78,8 @@ impl Chart {
             ),
         };
 
-        let mut label = *range.start();
-        while label <= *range.end() {
+        let mut label = *bounds.start();
+        while label <= *bounds.end() {
             let dy = label - bounds.start();
             let y = self.y + self.height
                 - (dy / bounds_size * self.height as f32).round() as i32;
@@ -77,10 +88,10 @@ impl Chart {
             graphics.draw_text(
                 inky,
                 label_x,
-                y,
+                y + 4,
                 &format(label),
                 alignment,
-                "helvR12",
+                "helvB12",
                 color,
             );
 
@@ -139,7 +150,7 @@ impl Chart {
                 self.y + self.height + Self::TICK_WIDTH + 20,
                 &d,
                 Alignment::Center,
-                "helvR14",
+                "helvB12",
                 color,
             );
         }

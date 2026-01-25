@@ -36,11 +36,13 @@ pub async fn update() -> Result<Data> {
 pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
     let now = Zoned::now().round(Unit::Minute).unwrap();
 
+    let y = 0;
+
     // Status bar
     graphics.draw_rect(
         inky,
         0,
-        0,
+        y,
         inky.resolution_x() as i32,
         30,
         Color::Black,
@@ -50,7 +52,7 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
     graphics.draw_text(
         inky,
         10,
-        20,
+        y + 20,
         &data.hostname,
         Alignment::Left,
         "helvR12",
@@ -62,10 +64,10 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
     graphics.draw_text(
         inky,
         inky.resolution_x() as i32 / 2,
-        20,
+        y + 20,
         &last_updated,
         Alignment::Center,
-        "helvB12",
+        "helvR12",
         Color::White,
     );
 
@@ -82,7 +84,7 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
     graphics.draw_text(
         inky,
         inky.resolution_x() as i32 - 40,
-        20,
+        y + 20,
         &wifi_status,
         Alignment::Right,
         "helvR12",
@@ -97,7 +99,7 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
             inky.resolution_x() as i32 - 10 - 4 * BAR_WIDTH - 3 * BAR_SPACING
                 + i * BAR_WIDTH
                 + i * BAR_SPACING;
-        let y = 22 - (i + 1) * BAR_WIDTH;
+        let y = y + 22 - (i + 1) * BAR_WIDTH;
         let height = (i + 1) * BAR_WIDTH;
         if i < bars {
             graphics.draw_rect(inky, x, y, BAR_WIDTH, height, Color::White);

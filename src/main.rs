@@ -2,6 +2,7 @@ mod affirmations;
 mod calendar;
 mod chart;
 mod status;
+mod sunrise;
 mod weather;
 
 use core::time::Duration;

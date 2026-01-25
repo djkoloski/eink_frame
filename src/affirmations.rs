@@ -12,14 +12,15 @@ const AFFIRMATIONS: &[&str] = &[
 ];
 
 pub fn render(inky: &mut Inky, graphics: &Graphics) {
-    let message = AFFIRMATIONS[rand::rng().random_range(0..AFFIRMATIONS.len())];
-    graphics.draw_text(
-        inky,
-        650,
-        100,
-        &message,
-        Alignment::Center,
-        "helvB12",
-        Color::Black,
-    );
+    // let message =
+    // AFFIRMATIONS[rand::rng().random_range(0..AFFIRMATIONS.len())];
+    // graphics.draw_text(
+    //     inky,
+    //     650,
+    //     100,
+    //     &message,
+    //     Alignment::Center,
+    //     "helvB12",
+    //     Color::Black,
+    // );
 }

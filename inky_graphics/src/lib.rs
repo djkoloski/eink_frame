@@ -121,6 +121,24 @@ impl Graphics {
         }
     }
 
+    pub fn dither_rect(
+        &self,
+        inky: &mut Inky,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        color: Color,
+    ) {
+        for dy in 0..height {
+            for dx in 0..width {
+                if dy % 2 == 0 && (dx + dy) % 4 == 0 {
+                    inky.set(x + dx, y + dy, color);
+                }
+            }
+        }
+    }
+
     pub fn draw_box(
         &self,
         inky: &mut Inky,

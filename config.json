@@ -5,6 +5,32 @@
     },
     "weather": {
         "latitude": "42.753222908572496",
-        "longitude": "-73.65671812298604"
+        "longitude": "-73.65671812298604",
+        "birthdays": [
+            {
+                "name": "John",
+                "date": "1962-02-06T12:00:00-05:00[America/New_York]"
+            },
+            {
+                "name": "Diane",
+                "date": "1965-08-06T12:00:00-04:00[America/New_York]"
+            },
+            {
+                "name": "Julia",
+                "date": "1992-02-14T12:00:00-05:00[America/New_York]"
+            },
+            {
+                "name": "David",
+                "date": "1995-06-08T12:32:00-04:00[America/New_York]"
+            },
+            {
+                "name": "Kyle",
+                "date": "1995-12-01T12:00:00-05:00[America/New_York]"
+            },
+            {
+                "name": "Madison",
+                "date": "1998-06-03T12:00:00-04:00[America/New_York]"
+            }
+        ]
     }
 }
