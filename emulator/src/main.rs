@@ -107,8 +107,8 @@ impl ApplicationHandler for App {
                         1 => 0xffffff,
                         2 => 0xffff00,
                         3 => 0xff0000,
-                        5 => 0x00ff00,
-                        6 => 0x0000ff,
+                        5 => 0x0000ff,
+                        6 => 0x00ff00,
                         _ => panic!(),
                     };
                 }

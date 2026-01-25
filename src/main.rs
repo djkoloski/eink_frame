@@ -1,5 +1,6 @@
 mod affirmations;
 mod calendar;
+mod chart;
 mod status;
 mod weather;
 

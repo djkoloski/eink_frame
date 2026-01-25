@@ -18,8 +18,8 @@ pub enum Color {
     White = 1,
     Yellow = 2,
     Red = 3,
-    Green = 5,
-    Blue = 6,
+    Blue = 5,
+    Green = 6,
 }
 
 impl Inky {

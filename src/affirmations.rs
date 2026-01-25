@@ -15,11 +15,11 @@ pub fn render(inky: &mut Inky, graphics: &Graphics) {
     let message = AFFIRMATIONS[rand::rng().random_range(0..AFFIRMATIONS.len())];
     graphics.draw_text(
         inky,
-        inky.resolution_x() as i32 / 2,
-        200,
+        650,
+        100,
         &message,
         Alignment::Center,
-        "helvB24",
+        "helvB12",
         Color::Black,
     );
 }

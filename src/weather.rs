@@ -5,6 +5,8 @@ use jiff::Zoned;
 use reqwest::Client;
 use serde::Deserialize;
 
+use crate::chart::{Bounds, Chart, Graph, Side};
+
 #[derive(Deserialize)]
 pub struct Config {
     latitude: String,
@@ -14,7 +16,6 @@ pub struct Config {
 pub struct Data {
     points: Points,
     forecast: Forecast,
-    #[expect(unused)]
     hourly_forecast: Forecast,
 }
 
@@ -168,24 +169,91 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
         Color::Black,
     );
 
+    // Temperature/precipitation graph
+    const GRAPH_PERIODS: usize = 24;
+
+    let chart = Chart {
+        x: 50,
+        y: 85,
+        width: 400,
+        height: 200,
+        min_pixels_per_interval: 20,
+    };
+
+    chart.render_axis(
+        inky,
+        graphics,
+        data.hourly_forecast.properties.periods[..GRAPH_PERIODS]
+            .iter()
+            .map(|p| {
+                let time =
+                    Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &p.start_time)
+                        .unwrap();
+                if time.hour() % 3 == 0 {
+                    if time.hour() % 12 == 0 {
+                        time.strftime("%-I%P").to_string()
+                    } else {
+                        time.strftime("%-I").to_string()
+                    }
+                } else {
+                    String::new()
+                }
+            }),
+        Color::Black,
+    );
+
+    let temp = Graph {
+        bounds: Bounds::Margin(0.1),
+        side: Side::Left,
+    };
+
+    chart.render_graph(
+        inky,
+        graphics,
+        &temp,
+        data.hourly_forecast.properties.periods[..GRAPH_PERIODS]
+            .iter()
+            .map(|p| p.temperature),
+        |temp| format!("{temp}°"),
+        Color::Red,
+    );
+
+    let precip = Graph {
+        bounds: Bounds::Constant(0.0..=100.0),
+        side: Side::Right,
+    };
+
+    chart.render_graph(
+        inky,
+        graphics,
+        &precip,
+        data.hourly_forecast.properties.periods[..GRAPH_PERIODS]
+            .iter()
+            .map(|p| p.probability_of_precipitation.value),
+        |precip| format!("{precip}%"),
+        Color::Blue,
+    );
+
+    // 6-day forecast
     let current_periods = if data.forecast.properties.periods[0].is_daytime {
         2
     } else {
         1
     };
 
-    const FORECAST_X: i32 = 14;
+    const FORECAST_X: i32 = 10;
     const FORECAST_Y: i32 = 325;
-    const FORECAST_WIDTH: i32 = 100;
+    const FORECAST_WIDTH: i32 = 120;
     const FORECAST_HEIGHT: i32 = 100;
     const FORECAST_SPACING: i32 = 12;
-    const FORECAST_RADIUS: i32 = 14;
-    const FORECAST_BORDER: i32 = 4;
+    const FORECAST_RADIUS: i32 = 10;
+    const FORECAST_BORDER: i32 = 3;
+    const FORECAST_BIAS: i32 = 3;
 
     for (i, periods) in data.forecast.properties.periods[current_periods..]
         .chunks(2)
         .enumerate()
-        .take(7)
+        .take(6)
     {
         let time =
             Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &periods[0].start_time)
@@ -229,24 +297,28 @@ pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
                 format!("{}%", period.probability_of_precipitation.value);
             graphics.draw_text(
                 inky,
-                x + 10 + (1 + 2 * p as i32) * (FORECAST_WIDTH - 20) / 4 + 3,
+                x + 10
+                    + (1 + 2 * p as i32) * (FORECAST_WIDTH - 20) / 4
+                    + FORECAST_BIAS,
                 FORECAST_Y + 60,
                 &precipitation,
                 Alignment::Center,
                 "helvR12",
-                Color::Black,
+                Color::Blue,
             );
 
             let temperature = format!("{}°", period.temperature);
 
             graphics.draw_text(
                 inky,
-                x + 10 + (1 + 2 * p as i32) * (FORECAST_WIDTH - 20) / 4 + 3,
+                x + 10
+                    + (1 + 2 * p as i32) * (FORECAST_WIDTH - 20) / 4
+                    + FORECAST_BIAS,
                 FORECAST_Y + 85,
                 &temperature,
                 Alignment::Center,
-                "helvB12",
-                Color::Black,
+                "helvR12",
+                Color::Red,
             );
         }
     }
