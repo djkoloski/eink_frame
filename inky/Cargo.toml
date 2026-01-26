@@ -5,10 +5,11 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+tokio.workspace = true
 
 [target.'cfg(hardware)'.dependencies]
-gpiod.workspace = true
 spidev.workspace = true
+tokio-gpiod.workspace = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(hardware)'] }

@@ -11,6 +11,14 @@ pub use self::hardware::*;
 const RESOLUTION_X: usize = 800;
 const RESOLUTION_Y: usize = 480;
 
+#[derive(Clone, Copy, Debug)]
+pub enum Button {
+    A,
+    B,
+    C,
+    D,
+}
+
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Color {

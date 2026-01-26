@@ -728,7 +728,7 @@ impl Weather {
                     graphics,
                     day_x,
                     day_y,
-                    &data.forecast.properties.periods[i..i + 2],
+                    &data.forecast.properties.periods[i],
                 );
 
                 i += 2;
@@ -742,13 +742,12 @@ impl Weather {
         graphics: &Graphics,
         x: i32,
         y: i32,
-        periods: &[ForecastPeriod],
+        period: &ForecastPeriod,
     ) {
         let width = 99;
 
-        let time =
-            Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &periods[0].start_time)
-                .unwrap();
+        let time = Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &period.start_time)
+            .unwrap();
 
         graphics.draw_text(
             inky,
@@ -764,7 +763,7 @@ impl Weather {
             inky,
             x + 2,
             y + 25,
-            icon_to_bitmap(&periods[0].icon),
+            icon_to_bitmap(&period.icon),
             Color::Black,
         );
 
@@ -772,7 +771,7 @@ impl Weather {
             inky,
             x + 85,
             y + 45,
-            &format!("{}°", periods[0].temperature),
+            &format!("{}°", period.temperature),
             Alignment::Right,
             "helvR14",
             Color::Red,
@@ -782,7 +781,7 @@ impl Weather {
             inky,
             x + 94,
             y + 68,
-            &format!("{}%", periods[0].probability_of_precipitation.value),
+            &format!("{}%", period.probability_of_precipitation.value),
             Alignment::Right,
             "helvR14",
             Color::Blue,

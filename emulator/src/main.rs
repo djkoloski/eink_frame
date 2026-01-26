@@ -1,8 +1,8 @@
-use core::num::NonZeroU32;
+use core::{num::NonZeroU32, slice};
 use std::{
     env::temp_dir,
-    fs::File,
-    io::{Read, Seek as _, SeekFrom},
+    fs::{File, OpenOptions},
+    io::{Read, Seek as _, SeekFrom, Write},
     rc::Rc,
 };
 
@@ -11,8 +11,9 @@ use softbuffer::{Context, Surface};
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
-    event::WindowEvent,
+    event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop, OwnedDisplayHandle},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowButtons, WindowId},
 };
 
@@ -29,6 +30,7 @@ struct State {
 struct App {
     file: File,
     state: Option<State>,
+    events: u8,
 }
 
 impl App {
@@ -36,10 +38,18 @@ impl App {
         let mut path = temp_dir();
         path.push("inky.buf");
 
-        let file = File::open(&path)?;
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&path)?;
         println!("opened buffer at {}", path.display());
 
-        Ok(Self { file, state: None })
+        Ok(Self {
+            file,
+            state: None,
+            events: 0,
+        })
     }
 }
 
@@ -94,8 +104,21 @@ impl ApplicationHandler for App {
 
                 self.file.lock().unwrap();
 
+                if self.events != 0 {
+                    self.file.rewind().unwrap();
+                    let mut existing_events = 0;
+                    self.file
+                        .read_exact(slice::from_mut(&mut existing_events))
+                        .unwrap();
+                    self.file.rewind().unwrap();
+                    self.file
+                        .write_all(&[existing_events | self.events])
+                        .unwrap();
+                    self.events = 0;
+                }
+
                 let mut buffer = Vec::new();
-                self.file.seek(SeekFrom::Start(0)).unwrap();
+                self.file.seek(SeekFrom::Start(1)).unwrap();
                 self.file.read_to_end(&mut buffer).unwrap();
 
                 self.file.unlock().unwrap();
@@ -116,6 +139,29 @@ impl ApplicationHandler for App {
                 display.present().unwrap();
 
                 state.window.request_redraw();
+            }
+            WindowEvent::KeyboardInput {
+                device_id: _,
+                event,
+                is_synthetic: _,
+            } => {
+                if event.state == ElementState::Pressed && !event.repeat {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::Digit1) => {
+                            self.events |= 0b0001
+                        }
+                        PhysicalKey::Code(KeyCode::Digit2) => {
+                            self.events |= 0b0010
+                        }
+                        PhysicalKey::Code(KeyCode::Digit3) => {
+                            self.events |= 0b0100
+                        }
+                        PhysicalKey::Code(KeyCode::Digit4) => {
+                            self.events |= 0b1000
+                        }
+                        _ => (),
+                    }
+                }
             }
             _ => (),
         }

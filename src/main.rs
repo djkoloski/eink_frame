@@ -66,7 +66,10 @@ impl App {
         let config = fs::read_to_string(&config_path).await?;
         let config = serde_json::from_str::<Config>(&config)?;
 
-        let inky = Inky::new()?;
+        let inky = Inky::new(|button| {
+            println!("Button pressed: {button:?}");
+        })
+        .await?;
         let graphics = Graphics::new(&config.graphics)?;
         let client = Client::new();
 
@@ -93,7 +96,7 @@ impl App {
 
             self.screens.render(&mut self.inky, &self.graphics);
 
-            self.inky.show()?;
+            self.inky.show().await?;
 
             sleep(Duration::from_secs_f64(self.update_interval_secs)).await;
         }
