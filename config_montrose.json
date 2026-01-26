@@ -4,8 +4,8 @@
         "resources": "resources/graphics.rkyv"
     },
     "weather": {
-        "latitude": 42.753222908572496,
-        "longitude": -73.65671812298604
+        "latitude": 41.803242145498665,
+        "longitude": -75.98860297404704
     },
     "calendar": {
         "birthdays": [

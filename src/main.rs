@@ -1,11 +1,9 @@
-mod affirmations;
-mod calendar;
 mod chart;
-mod status;
+mod screens;
 mod sunrise;
-mod weather;
 
 use core::time::Duration;
+use std::env;
 
 use anyhow::Result;
 use inky::Inky;
@@ -14,46 +12,96 @@ use reqwest::Client;
 use serde::Deserialize;
 use tokio::{fs, time::sleep};
 
+use self::screens::{calendar, status, weather};
+
 #[derive(Deserialize)]
 struct Config {
     update_interval_secs: f64,
     graphics: inky_graphics::Config,
-    weather: weather::Config,
+    weather: screens::weather::Config,
+    calendar: screens::calendar::Config,
+}
+
+enum Screen {
+    Weather,
+    Calendar,
+}
+
+struct Screens {
+    active: Screen,
+
+    status: status::Status,
+    weather: weather::Weather,
+}
+
+impl Screens {
+    async fn update(&mut self, client: &Client) {
+        self.status.update().await;
+        self.weather.update(client).await;
+    }
+
+    fn render(&self, inky: &mut Inky, graphics: &Graphics) {
+        match self.active {
+            Screen::Weather => self.weather.render(inky, graphics),
+            Screen::Calendar => todo!(),
+        }
+
+        self.status.render(inky, graphics);
+    }
+}
+
+struct App {
+    update_interval_secs: f64,
+
+    inky: Inky,
+    graphics: Graphics,
+    client: Client,
+    screens: Screens,
+}
+
+impl App {
+    async fn start() -> Result<Self> {
+        let config_path =
+            env::args().nth(1).unwrap_or("config.json".to_string());
+        let config = fs::read_to_string(&config_path).await?;
+        let config = serde_json::from_str::<Config>(&config)?;
+
+        let inky = Inky::new()?;
+        let graphics = Graphics::new(&config.graphics)?;
+        let client = Client::new();
+
+        Ok(Self {
+            update_interval_secs: config.update_interval_secs,
+
+            inky,
+            graphics,
+            client,
+            screens: Screens {
+                active: Screen::Weather,
+
+                status: status::Status::new(),
+                weather: weather::Weather::new(config.weather),
+            },
+        })
+    }
+
+    async fn run(&mut self) -> Result<()> {
+        loop {
+            self.screens.update(&self.client).await;
+
+            self.inky.clear();
+
+            self.screens.render(&mut self.inky, &self.graphics);
+
+            self.inky.show()?;
+
+            sleep(Duration::from_secs_f64(self.update_interval_secs)).await;
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = fs::read_to_string("config.json").await?;
-    let config = serde_json::from_str::<Config>(&config)?;
-
-    let client = Client::new();
-    let mut inky = Inky::new()?;
-    let graphics = Graphics::new(&config.graphics)?;
-
-    loop {
-        let status = status::update().await?;
-        let weather = weather::update(&client, &config.weather).await?;
-
-        render(&mut inky, &graphics, &status, &weather).await?;
-
-        sleep(Duration::from_secs_f64(config.update_interval_secs)).await;
-    }
-}
-
-async fn render(
-    inky: &mut Inky,
-    graphics: &Graphics,
-    status: &status::Data,
-    weather: &weather::Data,
-) -> Result<()> {
-    inky.clear();
-
-    status::render(inky, graphics, status);
-    calendar::render(inky, graphics);
-    weather::render(inky, graphics, weather);
-    affirmations::render(inky, graphics);
-
-    inky.show()?;
-
-    Ok(())
+    let mut app = App::start().await?;
+    app.run().await
 }

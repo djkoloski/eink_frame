@@ -49,8 +49,16 @@ impl ArchivedFont {
 }
 
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub struct Bitmap {
+    pub bits: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Resources {
     pub fonts: HashMap<String, Font>,
+    pub bitmaps: HashMap<String, Bitmap>,
 }
 
 pub struct Graphics {
@@ -132,8 +140,10 @@ impl Graphics {
     ) {
         for dy in 0..height {
             for dx in 0..width {
-                if dy % 2 == 0 && (dx + dy) % 4 == 0 {
-                    inky.set(x + dx, y + dy, color);
+                let px = x + dx;
+                let py = y + dy;
+                if py % 2 == 0 && (px + py) % 4 == 0 {
+                    inky.set(px, py, color);
                 }
             }
         }
@@ -352,6 +362,27 @@ impl Graphics {
 
             x += character.advance_x as i32;
             y += character.advance_y as i32;
+        }
+    }
+
+    pub fn draw_bitmap(
+        &self,
+        inky: &mut Inky,
+        x: i32,
+        y: i32,
+        bitmap: &str,
+        color: Color,
+    ) {
+        let bitmap = &self.resources.bitmaps[bitmap];
+        for dy in 0..bitmap.width.to_native() as usize {
+            for dx in 0..bitmap.height.to_native() as usize {
+                let index = dx + dy * bitmap.height.to_native() as usize;
+                let byte = index / 8;
+                let bit = index % 8;
+                if bitmap.bits[byte] & (1 << bit) != 0 {
+                    inky.set(x + dx as i32, y + dy as i32, color);
+                }
+            }
         }
     }
 }

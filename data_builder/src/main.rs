@@ -1,7 +1,8 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context as _, Result};
-use inky_graphics::{Character, Font, Resources};
+use image::{GenericImageView, ImageReader};
+use inky_graphics::{Bitmap, Character, Font, Resources};
 use rkyv::rancor::Failure;
 
 fn load_font(path: impl AsRef<Path>) -> Result<Font> {
@@ -95,6 +96,7 @@ fn load_font(path: impl AsRef<Path>) -> Result<Font> {
 fn main() -> Result<()> {
     let mut resources = Resources {
         fonts: HashMap::new(),
+        bitmaps: HashMap::new(),
     };
 
     for dir in fs::read_dir("fonts")? {
@@ -107,6 +109,59 @@ fn main() -> Result<()> {
                 .to_string(),
             load_font(dir.path())?,
         );
+    }
+
+    let icons = [
+        ("skc", 0),
+        ("few", 9),
+        ("sct", 18),
+        ("bkn", 27),
+        ("ovc", 35),
+        ("wind_skc", 1),
+        ("wind_few,wind_sct", 19),
+        ("wind_bkn", 28),
+        ("wind_ovc", 37),
+        ("snow", 2),
+        ("rain_snow,rain_sleet", 11),
+        ("fzra,rain_fzra,snow_fzra", 20),
+        ("snow_sleet,sleet", 29),
+        ("rain,rain_showers", 3),
+        ("rain_showers_hi", 12),
+        ("tsra,tsra_sct", 4),
+        ("tsra_hi", 13),
+        ("tornado", 5),
+        ("hurricane,tropical_storm", 6),
+        ("dust", 7),
+        ("smoke", 16),
+        ("haze", 25),
+        ("hot", 8),
+        ("cold", 17),
+        ("blizzard", 26),
+        ("fog", 35),
+    ];
+    let weather_icons =
+        ImageReader::open("bitmaps/weather_icons_48x48.png")?.decode()?;
+    for (icon, index) in icons {
+        let mut bitmap = Bitmap {
+            bits: vec![0u8; 48 * 48 / 8],
+            width: 48,
+            height: 48,
+        };
+
+        let x = index % 9 * 48;
+        let y = index / 9 * 48;
+        for dy in 0..48 {
+            for dx in 0..48 {
+                if weather_icons.get_pixel(x + dx, y + dy)[0] > 0 {
+                    let i = dx + dy * 48;
+                    let byte = i / 8;
+                    let bit = i % 8;
+                    bitmap.bits[byte as usize] |= 1 << bit;
+                }
+            }
+        }
+
+        resources.bitmaps.insert(icon.to_string(), bitmap);
     }
 
     let bytes = rkyv::to_bytes::<Failure>(&resources)?;
