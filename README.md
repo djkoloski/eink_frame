@@ -27,6 +27,30 @@ linker = "<TOOLCHAIN_PATH>/bin/aarch64-none-linux-gnu-gcc"
 rustflags = ["-C", "target-cpu=cortex-a53"]
 ```
 
+### Performance tuning
+
+For best performance, you'll also need to increase the size of the SPI device buffer. The device buffer is limited to 4096 by default, forcing the image transfer to be split into multiple consecutive transfers and thus kernel roundtrips.
+
+To check the size of the SPI buffer:
+
+```
+cat /sys/module/spidev/parameters/bufsiz
+```
+
+To increase the size of the SPI buffer:
+
+```
+sudo nano /boot/firmware/cmdline.txt
+```
+
+and append
+
+```
+spidev.bufsiz=192000
+```
+
+then reboot the device.
+
 ## Host development
 
 To develop on host, `cargo run` and then `cargo run -p emulator` to start the

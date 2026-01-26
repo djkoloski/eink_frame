@@ -12,11 +12,13 @@ edition = "2024"
 
 [workspace.dependencies]
 anyhow = "1"
+futures = "0.3"
 hostname = "0.4"
 image = "0.25"
 inky = { path = "inky" }
 inky_graphics = { path = "inky_graphics" }
 jiff = "0.2"
+nmrs = "2"
 quick-xml = "0.39"
 rand = "0.9"
 reqwest = "0.13"
@@ -37,10 +39,12 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+futures.workspace = true
 hostname.workspace = true
 inky.workspace = true
 inky_graphics.workspace = true
 jiff.workspace = true
+nmrs.workspace = true
 reqwest.workspace = true
 rand.workspace = true
 serde.workspace = true

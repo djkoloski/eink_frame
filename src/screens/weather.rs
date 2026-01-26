@@ -4,6 +4,7 @@ use inky_graphics::{Alignment, Graphics};
 use jiff::{Unit, Zoned};
 use reqwest::Client;
 use serde::Deserialize;
+use tokio::time::Instant;
 
 use crate::{
     chart::{Bounds, Chart, Graph, Side},
@@ -25,6 +26,7 @@ struct Data {
 pub struct Weather {
     config: Config,
     data: Result<Data>,
+    last_fetch: Option<Instant>,
 }
 
 #[derive(Deserialize)]
@@ -108,11 +110,21 @@ impl Weather {
         Self {
             config,
             data: Err(anyhow!("weather API not yet contacted")),
+            last_fetch: None,
         }
     }
 
     pub async fn update(&mut self, client: &Client) {
-        self.data = self.fetch_data(client).await;
+        if self.last_fetch.is_none_or(|last_fetch| {
+            Instant::now().duration_since(last_fetch).as_secs_f64() >= 300.0
+        }) {
+            self.data = self.fetch_data(client).await;
+            self.last_fetch = Some(Instant::now());
+        }
+    }
+
+    pub fn force_refresh(&mut self) {
+        self.last_fetch = None;
     }
 
     async fn fetch_data(&self, client: &Client) -> Result<Data> {

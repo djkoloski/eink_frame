@@ -31,7 +31,7 @@ impl Inky {
         file.lock()?;
 
         file.rewind()?;
-        file.write_all(&[0; 1])?;
+        file.write_all(&[0, 0])?;
         file.flush()?;
 
         file.unlock()?;
@@ -41,7 +41,8 @@ impl Inky {
                 .create(true)
                 .read(true)
                 .write(true)
-                .open(&path)?;
+                .open(&path)
+                .unwrap();
 
             loop {
                 file.lock().unwrap();
@@ -64,8 +65,6 @@ impl Inky {
 
                 tokio::time::sleep(Duration::from_millis(16)).await;
             }
-
-            Ok::<_, anyhow::Error>(())
         });
 
         Ok(Self {
@@ -95,5 +94,15 @@ impl Inky {
 
     pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
         self.buffer[x + y * RESOLUTION_X] = color as u8;
+    }
+
+    pub async fn set_led(&mut self, on: bool) {
+        self.file.lock().unwrap();
+
+        self.file.seek(SeekFrom::Start(1)).unwrap();
+        self.file.write_all(&[on as u8]).unwrap();
+        self.file.flush().unwrap();
+
+        self.file.unlock().unwrap();
     }
 }

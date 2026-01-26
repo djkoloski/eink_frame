@@ -124,7 +124,7 @@ impl ApplicationHandler for App {
                 self.file.unlock().unwrap();
 
                 let mut display = state.surface.buffer_mut().unwrap();
-                for (index, byte) in buffer.iter().enumerate() {
+                for (index, byte) in buffer.iter().skip(1).enumerate() {
                     display[index] = match byte {
                         0 => 0x000000,
                         1 => 0xffffff,
@@ -135,6 +135,20 @@ impl ApplicationHandler for App {
                         _ => panic!(),
                     };
                 }
+
+                // Render LED
+                if buffer[0] != 0 {
+                    let led_x = 100;
+                    let led_y = 10;
+                    for dy in 0..10 {
+                        for dx in 0..10 {
+                            let x = led_x + dx;
+                            let y = led_y + dy;
+                            display[x + y * RESOLUTION_X] = 0xffffff;
+                        }
+                    }
+                }
+
                 state.window.pre_present_notify();
                 display.present().unwrap();
 

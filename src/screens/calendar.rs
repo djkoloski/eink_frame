@@ -1,4 +1,3 @@
-use anyhow::Result;
 use inky::{Color, Inky};
 use inky_graphics::{Alignment, Graphics};
 use jiff::{SpanTotal, Unit, Zoned, civil::date};
@@ -15,121 +14,135 @@ pub struct Config {
     birthdays: Vec<Birthday>,
 }
 
-pub struct Data {
+pub struct Calendar {
     ages: Vec<(String, Age)>,
 }
 
-pub async fn update(config: &Config) -> Result<Data> {
-    let now = Zoned::now();
-    let mut ages = Vec::new();
-    for birthday in config.birthdays.iter() {
-        ages.push((
-            birthday.name.clone(),
-            calculate_age(birthday.date.parse().unwrap(), now.clone()),
-        ));
+impl Calendar {
+    pub fn new(config: Config) -> Self {
+        let now = Zoned::now();
+        let mut ages = Vec::new();
+        for birthday in config.birthdays.iter() {
+            ages.push((
+                birthday.name.clone(),
+                calculate_age(birthday.date.parse().unwrap(), now.clone()),
+            ));
+        }
+
+        Self { ages }
     }
 
-    Ok(Data { ages })
-}
+    pub async fn update(&mut self) {}
 
-pub fn render(inky: &mut Inky, graphics: &Graphics, data: &Data) {
-    let now = Zoned::now().round(Unit::Minute).unwrap();
+    pub fn render(&self, inky: &mut Inky, graphics: &Graphics) {
+        let now = Zoned::now().round(Unit::Minute).unwrap();
 
-    // Ages
-    graphics.draw_text(
-        inky,
-        700,
-        260,
-        "Family ages",
-        Alignment::Center,
-        "helvB12",
-        Color::Black,
-    );
-    graphics.draw_rect(inky, 630, 270, 140, 2, Color::Black);
-    let mut y = 300;
-    for (name, age) in data.ages.iter() {
+        // Ages
         graphics.draw_text(
             inky,
-            660,
-            y,
-            &format!("{name}:"),
-            Alignment::Right,
+            700,
+            50,
+            "Family ages",
+            Alignment::Center,
             "helvB12",
             Color::Black,
         );
+        graphics.draw_rect(inky, 630, 60, 140, 2, Color::Black);
+        let mut y = 80;
+        for (name, age) in self.ages.iter() {
+            graphics.draw_text(
+                inky,
+                630,
+                y,
+                &format!("{name}:"),
+                Alignment::Right,
+                "helvB12",
+                Color::Black,
+            );
+            graphics.draw_text(
+                inky,
+                667,
+                y,
+                &format!("{}y", age.years_old),
+                Alignment::Right,
+                "helvB12",
+                Color::Black,
+            );
+            graphics.draw_text(
+                inky,
+                713,
+                y,
+                &format!("{}d", age.days_old),
+                Alignment::Right,
+                "helvB12",
+                Color::Black,
+            );
+            graphics.draw_text(
+                inky,
+                750,
+                y,
+                &format!("{}h", age.hours_old),
+                Alignment::Right,
+                "helvB12",
+                Color::Black,
+            );
+            graphics.draw_text(
+                inky,
+                790,
+                y,
+                &format!("{}m", age.minutes_old),
+                Alignment::Right,
+                "helvB12",
+                Color::Black,
+            );
+
+            y += 24;
+        }
+
+        // Progress bar
+        let year_start = now.first_of_year().unwrap().start_of_day().unwrap();
+        let year_end = now.last_of_year().unwrap().end_of_day().unwrap();
+        let year = year_end - year_start.clone();
+        let year_done = now.clone() - year_start;
+        let completed = year_done.total(Unit::Minute).unwrap()
+            / year.total(Unit::Minute).unwrap();
+        let percent =
+            format!("{:.1}% through {}", completed * 100.0, now.year());
         graphics.draw_text(
             inky,
-            697,
-            y,
-            &format!("{}y", age.years_old),
-            Alignment::Right,
-            "helvB12",
-            Color::Black,
-        );
-        graphics.draw_text(
-            inky,
-            743,
-            y,
-            &format!("{}d", age.days_old),
-            Alignment::Right,
-            "helvB12",
-            Color::Black,
-        );
-        graphics.draw_text(
-            inky,
-            790,
-            y,
-            &format!("{}:{:02}", age.hours_old, age.minutes_old),
+            inky.resolution_x() as i32 - 10,
+            450,
+            &percent,
             Alignment::Right,
             "helvB12",
             Color::Black,
         );
 
-        y += 24;
+        const BAR_X: i32 = 10;
+        const BAR_Y: i32 = 460;
+        const BAR_WIDTH: i32 = 780;
+        const BAR_HEIGHT: i32 = 10;
+        const BAR_RADIUS: i32 = 5;
+        const BAR_BORDER: i32 = 2;
+        graphics.draw_rounded_rect(
+            inky,
+            BAR_X,
+            BAR_Y,
+            BAR_WIDTH,
+            BAR_HEIGHT,
+            BAR_RADIUS,
+            Color::Black,
+        );
+        graphics.draw_rounded_rect(
+            inky,
+            BAR_X + BAR_BORDER,
+            BAR_Y + BAR_BORDER,
+            ((BAR_WIDTH - BAR_BORDER * 2) as f64 * completed).round() as i32,
+            BAR_HEIGHT - BAR_BORDER * 2,
+            BAR_RADIUS - BAR_BORDER,
+            Color::White,
+        );
     }
-
-    // Progress bar
-    let year_start = now.first_of_year().unwrap().start_of_day().unwrap();
-    let year_end = now.last_of_year().unwrap().end_of_day().unwrap();
-    let year = year_end - year_start.clone();
-    let year_done = now.clone() - year_start;
-    let completed = year_done.total(Unit::Minute).unwrap()
-        / year.total(Unit::Minute).unwrap();
-    let percent = format!("{:.1}% through {}", completed * 100.0, now.year());
-    graphics.draw_text(
-        inky,
-        inky.resolution_x() as i32 - 10,
-        460,
-        &percent,
-        Alignment::Right,
-        "helvB12",
-        Color::Black,
-    );
-
-    const BAR_X: i32 = 10;
-    const BAR_Y: i32 = 469;
-    const BAR_WIDTH: i32 = 780;
-    const BAR_HEIGHT: i32 = 8;
-    const BAR_RADIUS: i32 = 4;
-    const BAR_BORDER: i32 = 2;
-    graphics.draw_rounded_rect(
-        inky,
-        BAR_X,
-        BAR_Y,
-        BAR_WIDTH,
-        BAR_HEIGHT,
-        BAR_RADIUS,
-        Color::Black,
-    );
-    graphics.draw_rounded_rect(
-        inky,
-        BAR_X + BAR_BORDER,
-        BAR_Y + BAR_BORDER,
-        ((BAR_WIDTH - BAR_BORDER * 2) as f64 * completed).round() as i32,
-        BAR_HEIGHT - BAR_BORDER * 2,
-        BAR_RADIUS - BAR_BORDER,
-        Color::White,
-    );
 }
 
 struct Age {

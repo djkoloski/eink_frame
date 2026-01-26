@@ -1,48 +1,37 @@
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use inky::{Color, Inky};
 use inky_graphics::{Alignment, Graphics};
 use jiff::{Unit, Zoned};
-use tokio::process::Command;
-
-struct Wifi {
-    ssid: String,
-    signal: u32,
-}
+use nmrs::{Network, NetworkManager};
+use tokio::time::Instant;
 
 pub struct Status {
+    nm: NetworkManager,
     hostname: Option<String>,
-    wifi: Option<Wifi>,
+    network: Option<Network>,
+    last_fetch: Option<Instant>,
 }
 
 impl Status {
-    pub fn new() -> Self {
-        Self {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            nm: NetworkManager::new().await?,
             hostname: None,
-            wifi: None,
-        }
+            network: None,
+            last_fetch: None,
+        })
     }
 
     pub async fn update(&mut self) {
-        self.hostname = hostname::get()
-            .ok()
-            .map(|h| h.to_string_lossy().into_owned());
-        self.wifi = self.fetch_wifi().await.ok();
-    }
-
-    async fn fetch_wifi(&self) -> Result<Wifi> {
-        let output = Command::new("nmcli")
-            .args(["-g", "SSID,SIGNAL", "device", "wifi"])
-            .output()
-            .await?;
-        let output = str::from_utf8(&output.stdout)?.trim();
-        let (ssid, signal) = output
-            .split_once(':')
-            .context("unexpected output from nmcli")?;
-
-        Ok(Wifi {
-            ssid: ssid.to_string(),
-            signal: signal.parse()?,
-        })
+        if self.last_fetch.is_none_or(|last_fetch| {
+            Instant::now().duration_since(last_fetch).as_secs_f64() >= 300.0
+        }) {
+            self.hostname = hostname::get()
+                .ok()
+                .map(|h| h.to_string_lossy().into_owned());
+            self.network = self.nm.current_network().await.ok().flatten();
+            self.last_fetch = Some(Instant::now());
+        }
     }
 
     pub fn render(&self, inky: &mut Inky, graphics: &Graphics) {
@@ -86,9 +75,9 @@ impl Status {
         // WiFi status
         let wifi_status;
         let bars;
-        if let Some(wifi) = &self.wifi {
-            wifi_status = wifi.ssid.as_str();
-            bars = wifi.signal.div_ceil(25) as i32;
+        if let Some(network) = &self.network {
+            wifi_status = network.ssid.as_str();
+            bars = network.strength.unwrap_or(0).div_ceil(25) as i32;
         } else {
             wifi_status = "Wi-Fi disconnected";
             bars = 0;
