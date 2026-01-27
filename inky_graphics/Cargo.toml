@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+image.workspace = true
 inky.workspace = true
 rkyv.workspace = true
 rkyv_util.workspace = true

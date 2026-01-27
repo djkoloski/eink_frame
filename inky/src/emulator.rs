@@ -84,7 +84,7 @@ impl Inky {
     pub async fn show(&mut self) -> Result<()> {
         self.file.lock()?;
 
-        self.file.seek(SeekFrom::Start(1))?;
+        self.file.seek(SeekFrom::Start(2))?;
         self.file.write_all(&self.buffer)?;
 
         self.file.unlock()?;

@@ -1,5 +1,5 @@
 {
-    "update_interval_secs": 300.0,
+    "update_interval_secs": 3600.0,
     "graphics": {
         "resources": "resources/graphics.rkyv"
     },
@@ -42,5 +42,8 @@
                 "date": "1998-06-03T12:00:00-04:00[America/New_York]"
             }
         ]
+    },
+    "astronomy": {
+        "api_key": "DLeBsP5crxzOzYnSUePTXdIVXdI1yubAoU0hI0gU"
     }
 }

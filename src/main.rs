@@ -21,20 +21,22 @@ use reqwest::Client;
 use serde::Deserialize;
 use tokio::{fs, join, select, time::sleep};
 
-use self::screens::{calendar, status, weather};
+use self::screens::{astronomy, calendar, status, weather};
 
 #[derive(Deserialize)]
 struct Config {
     update_interval_secs: f64,
     graphics: inky_graphics::Config,
-    weather: screens::weather::Config,
-    calendar: screens::calendar::Config,
+    weather: weather::Config,
+    calendar: calendar::Config,
+    astronomy: astronomy::Config,
 }
 
 #[derive(Clone, Copy, Debug)]
 enum Screen {
     Weather = 0,
     Calendar = 1,
+    Astronomy = 2,
 }
 
 impl Screen {
@@ -42,6 +44,7 @@ impl Screen {
         Some(match int {
             0 => Screen::Weather,
             1 => Screen::Calendar,
+            2 => Screen::Astronomy,
             _ => return None,
         })
     }
@@ -51,6 +54,7 @@ struct Screens {
     status: status::Status,
     weather: weather::Weather,
     calendar: calendar::Calendar,
+    astronomy: astronomy::Astronomy,
 }
 
 impl Screens {
@@ -59,6 +63,7 @@ impl Screens {
             self.status.update(),
             self.weather.update(client),
             self.calendar.update(),
+            self.astronomy.update(client),
         );
     }
 
@@ -66,6 +71,7 @@ impl Screens {
         match active {
             Screen::Weather => self.weather.render(inky, graphics),
             Screen::Calendar => self.calendar.render(inky, graphics),
+            Screen::Astronomy => self.astronomy.render(inky, graphics),
         }
 
         self.status.render(inky, graphics);
@@ -73,6 +79,7 @@ impl Screens {
 
     fn force_refresh(&mut self) {
         self.weather.force_refresh();
+        self.astronomy.force_refresh();
     }
 }
 
@@ -169,8 +176,8 @@ impl App {
         let inky = Inky::new(move |button| match button {
             Button::A => button_shared.set_active(Screen::Weather),
             Button::B => button_shared.set_active(Screen::Calendar),
+            Button::C => button_shared.set_active(Screen::Astronomy),
             Button::D => button_shared.hard_refresh(),
-            _ => (),
         })
         .await?;
         let graphics = Graphics::new(&config.graphics)?;
@@ -188,6 +195,7 @@ impl App {
                 status: status::Status::new().await?,
                 weather: weather::Weather::new(config.weather),
                 calendar: calendar::Calendar::new(config.calendar),
+                astronomy: astronomy::Astronomy::new(config.astronomy),
             },
         })
     }

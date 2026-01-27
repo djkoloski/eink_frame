@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use anyhow::Result;
+use image::{Rgb, RgbImage, imageops::ColorMap};
 use inky::{Color, Inky};
 use rkyv::{primitive::ArchivedChar, rancor::Panic};
 use rkyv_util::owned::OwnedArchive;
@@ -318,7 +319,7 @@ impl Graphics {
         );
     }
 
-    fn calculate_text_width(&self, text: &str, font: &str) -> i32 {
+    pub fn calculate_text_width(&self, text: &str, font: &str) -> i32 {
         let mut width = 0;
 
         let font = &self.resources.fonts[font];
@@ -384,5 +385,74 @@ impl Graphics {
                 }
             }
         }
+    }
+
+    pub fn draw_image(
+        &self,
+        inky: &mut Inky,
+        x: i32,
+        y: i32,
+        image: &RgbImage,
+    ) {
+        const COLOR_MAP: [Color; 6] = [
+            Color::Black,
+            Color::White,
+            Color::Yellow,
+            Color::Red,
+            Color::Blue,
+            Color::Green,
+        ];
+
+        for dy in 0..image.height() {
+            for dx in 0..image.width() {
+                let color_index = DESATURATED_PALETTE
+                    .iter()
+                    .position(|p| p == image.get_pixel(dx, dy))
+                    .unwrap();
+                inky.set(x + dx as i32, y + dy as i32, COLOR_MAP[color_index]);
+            }
+        }
+    }
+}
+
+pub const DESATURATED_PALETTE: [Rgb<u8>; 6] = [
+    Rgb([0, 0, 0]),
+    Rgb([255, 255, 255]),
+    Rgb([255, 255, 0]),
+    Rgb([255, 0, 0]),
+    Rgb([0, 0, 255]),
+    Rgb([0, 255, 0]),
+];
+
+pub const SATURATED_PALETTE: [Rgb<u8>; 6] = [
+    Rgb([0, 0, 0]),
+    Rgb([161, 164, 165]),
+    Rgb([208, 190, 71]),
+    Rgb([156, 72, 75]),
+    Rgb([61, 59, 94]),
+    Rgb([58, 91, 70]),
+];
+
+pub struct InkyColorMap(pub [Rgb<u8>; 6]);
+
+impl ColorMap for InkyColorMap {
+    type Color = Rgb<u8>;
+
+    fn index_of(&self, color: &Self::Color) -> usize {
+        let mut best = None;
+        for (i, palette) in self.0.iter().enumerate() {
+            let mut sq_dist = 0.0;
+            for i in 0..3 {
+                sq_dist += (color.0[i] as f32 - palette.0[i] as f32).powi(2);
+            }
+            if best.is_none_or(|(best_sq_dist, _)| best_sq_dist > sq_dist) {
+                best = Some((sq_dist, i));
+            }
+        }
+        best.unwrap().1
+    }
+
+    fn map_color(&self, color: &mut Self::Color) {
+        *color = DESATURATED_PALETTE[self.index_of(color)];
     }
 }

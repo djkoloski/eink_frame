@@ -774,6 +774,7 @@ dependencies = [
  "anyhow",
  "futures",
  "hostname",
+ "image",
  "inky",
  "inky_graphics",
  "jiff",
@@ -1498,6 +1499,7 @@ name = "inky_graphics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "image",
  "inky",
  "rkyv",
  "rkyv_util",
