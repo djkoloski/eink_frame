@@ -1,140 +1,71 @@
+mod api;
+
+use core::time::Duration;
+
 use anyhow::{Result, anyhow};
 use inky::{Color, Inky};
 use inky_graphics::{Alignment, Graphics};
 use jiff::{Unit, Zoned};
 use reqwest::Client;
-use serde::Deserialize;
-use tokio::time::Instant;
+use tokio::{
+    sync::watch::{Receiver, Sender, channel},
+    task::JoinHandle,
+    time::sleep,
+};
 
 use crate::{
+    app::Screen,
     chart::{Bounds, Chart, Graph, Side},
+    config::{Config, Location},
     screens::error::render_error,
     sunrise::calculate_sun,
 };
 
-#[derive(Deserialize)]
-pub struct Config {
-    latitude: f64,
-    longitude: f64,
-}
-
 struct Data {
-    points: Points,
-    forecast: Forecast,
-    hourly_forecast: Forecast,
+    points: api::Points,
+    forecast: api::Forecast,
+    hourly_forecast: api::Forecast,
 }
 
-pub struct Weather {
-    config: Config,
-    data: Result<Data>,
-    last_fetch: Option<Instant>,
+struct Updater {
+    location: Location,
+    update_interval: Duration,
+    client: Client,
+    sender: Sender<Result<Data>>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Points {
-    properties: PointsProperties,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PointsProperties {
-    grid_id: String,
-    grid_x: i32,
-    grid_y: i32,
-    relative_location: RelativeLocation,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RelativeLocation {
-    properties: RelativeLocationProperties,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RelativeLocationProperties {
-    city: String,
-    state: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Forecast {
-    properties: ForecastProperties,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ForecastProperties {
-    elevation: ForecastUnit,
-    periods: Vec<ForecastPeriod>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ForecastPeriod {
-    #[expect(unused)]
-    number: u32,
-    #[expect(unused)]
-    name: String,
-    start_time: String,
-    #[expect(unused)]
-    end_time: String,
-    #[expect(unused)]
-    is_daytime: bool,
-    temperature: f32,
-    probability_of_precipitation: ForecastUnit,
-    #[expect(unused)]
-    dewpoint: Option<ForecastUnit>,
-    #[expect(unused)]
-    relative_humidity: Option<ForecastUnit>,
-    #[expect(unused)]
-    wind_speed: String,
-    #[expect(unused)]
-    wind_direction: String,
-    #[expect(unused)]
-    short_forecast: String,
-    #[expect(unused)]
-    detailed_forecast: String,
-    icon: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ForecastUnit {
-    value: f32,
-}
-
-impl Weather {
-    pub fn new(config: Config) -> Self {
+impl Updater {
+    fn new(
+        config: &Config,
+        client: &Client,
+        sender: Sender<Result<Data>>,
+    ) -> Self {
         Self {
-            config,
-            data: Err(anyhow!("API not yet contacted")),
-            last_fetch: None,
+            location: config.location,
+            update_interval: Duration::from_secs_f64(
+                config.weather_update_interval_secs,
+            ),
+            client: client.clone(),
+            sender,
         }
     }
 
-    pub async fn update(&mut self, client: &Client) {
-        if self.last_fetch.is_none_or(|last_fetch| {
-            Instant::now().duration_since(last_fetch).as_secs_f64() >= 300.0
-        }) {
-            self.data = self.fetch_data(client).await;
-            self.last_fetch = Some(Instant::now());
+    async fn run(self) {
+        loop {
+            let data = self.fetch_data().await;
+            self.sender.send(data).unwrap();
+            sleep(self.update_interval).await;
         }
     }
 
-    pub fn force_refresh(&mut self) {
-        self.last_fetch = None;
-    }
-
-    async fn fetch_data(&self, client: &Client) -> Result<Data> {
-        let points_response = client
+    async fn fetch_data(&self) -> Result<Data> {
+        let points_response = self
+            .client
             .execute(
-                client
+                self.client
                     .get(format!(
                         "https://api.weather.gov/points/{},{}",
-                        self.config.latitude, self.config.longitude,
+                        self.location.latitude, self.location.longitude,
                     ))
                     .header("accept", "application/geo+json")
                     .header(
@@ -146,11 +77,12 @@ impl Weather {
             .await?
             .text()
             .await?;
-        let points = serde_json::from_str::<Points>(&points_response)?;
+        let points = serde_json::from_str::<api::Points>(&points_response)?;
 
-        let forecast_response = client
+        let forecast_response = self
+            .client
             .execute(
-                client
+                self.client
                     .get(format!(
                         "https://api.weather.gov/gridpoints/{}/{},{}/forecast",
                         points.properties.grid_id,
@@ -167,11 +99,13 @@ impl Weather {
             .await?
             .text()
             .await?;
-        let forecast = serde_json::from_str::<Forecast>(&forecast_response)?;
+        let forecast =
+            serde_json::from_str::<api::Forecast>(&forecast_response)?;
 
-        let hourly_forecast_response = client
+        let hourly_forecast_response = self
+            .client
             .execute(
-                client
+                self.client
                     .get(format!(
                 "https://api.weather.gov/gridpoints/{}/{},{}/forecast/hourly",
                 points.properties.grid_id,
@@ -189,7 +123,7 @@ impl Weather {
             .text()
             .await?;
         let hourly_forecast =
-            serde_json::from_str::<Forecast>(&hourly_forecast_response)?;
+            serde_json::from_str::<api::Forecast>(&hourly_forecast_response)?;
 
         Ok(Data {
             points,
@@ -197,9 +131,30 @@ impl Weather {
             hourly_forecast,
         })
     }
+}
 
-    pub fn render(&self, inky: &mut Inky, graphics: &Graphics) {
-        let data = match self.data.as_ref() {
+pub struct Weather {
+    location: Location,
+    #[expect(unused)]
+    updater: JoinHandle<()>,
+    receiver: Receiver<Result<Data>>,
+}
+
+impl Screen for Weather {
+    fn new(config: &Config, client: &Client) -> Self {
+        let (sender, receiver) = channel(Err(anyhow!("API not yet contacted")));
+        let updater = tokio::spawn(Updater::new(config, client, sender).run());
+
+        Self {
+            location: config.location,
+            updater,
+            receiver,
+        }
+    }
+
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+        let data = self.receiver.borrow_and_update();
+        let data = match data.as_ref() {
             Ok(data) => data,
             Err(error) => {
                 render_error(
@@ -255,10 +210,16 @@ impl Weather {
         );
 
         // Daylight
-        self.render_daylight(inky, graphics, data, now.clone());
+        Self::render_daylight(
+            inky,
+            graphics,
+            data,
+            &self.location,
+            now.clone(),
+        );
 
         // Summary forecast
-        self.render_summary_forecast(inky, graphics, data);
+        Self::render_summary_forecast(inky, graphics, data);
 
         // Location
         graphics.draw_rect(inky, 600, 444, 200, 2, Color::Black);
@@ -293,12 +254,13 @@ impl Weather {
             "helvB18",
             Color::Black,
         );
-        self.render_hourly_chart(
+        Self::render_hourly_chart(
             inky,
             graphics,
             data,
             &chart,
             &data.hourly_forecast.properties.periods[..24],
+            &self.location,
             20,
         );
 
@@ -317,23 +279,30 @@ impl Weather {
             "helvB18",
             Color::Black,
         );
-        self.render_hourly_chart(
+        Self::render_hourly_chart(
             inky,
             graphics,
             data,
             &chart,
             &data.hourly_forecast.properties.periods[..72],
+            &self.location,
             50,
         );
     }
 
+    async fn updated(&mut self) {
+        self.receiver.changed().await.unwrap();
+    }
+}
+
+impl Weather {
     fn render_hourly_chart(
-        &self,
         inky: &mut Inky,
         graphics: &Graphics,
         data: &Data,
         chart: &Chart,
-        periods: &[ForecastPeriod],
+        periods: &[api::ForecastPeriod],
+        location: &Location,
         precipitation_granularity: i32,
     ) {
         // Temperature/precipitation graph
@@ -374,8 +343,8 @@ impl Weather {
         while day < time_end {
             let sun = calculate_sun(
                 day.clone(),
-                self.config.latitude,
-                self.config.longitude,
+                location.latitude,
+                location.longitude,
                 data.forecast.properties.elevation.value as f64,
             );
 
@@ -515,10 +484,10 @@ impl Weather {
     }
 
     fn render_daylight(
-        &self,
         inky: &mut Inky,
         graphics: &Graphics,
         data: &Data,
+        location: &Location,
         now: Zoned,
     ) {
         let x = 700;
@@ -539,8 +508,8 @@ impl Weather {
 
         let sun = calculate_sun(
             now.clone(),
-            self.config.latitude,
-            self.config.longitude,
+            location.latitude,
+            location.longitude,
             data.forecast.properties.elevation.value as f64,
         );
         let daylight = sun.sunset - sun.sunrise;
@@ -566,8 +535,8 @@ impl Weather {
 
         let tomorrow_sun = calculate_sun(
             now.tomorrow().unwrap(),
-            self.config.latitude,
-            self.config.longitude,
+            location.latitude,
+            location.longitude,
             data.forecast.properties.elevation.value as f64,
         );
         let tomorrow_daylight = tomorrow_sun.sunset - tomorrow_sun.sunrise;
@@ -600,7 +569,6 @@ impl Weather {
     }
 
     fn render_summary_forecast(
-        &self,
         inky: &mut Inky,
         graphics: &Graphics,
         data: &Data,
@@ -655,7 +623,7 @@ impl Weather {
             [y, y + height / 3 + border / 2, y + height * 2 / 3 + border]
         {
             for day_x in [x - width / 2, x + 1] {
-                self.render_summary_day(
+                Self::render_summary_day(
                     inky,
                     graphics,
                     day_x,
@@ -669,12 +637,11 @@ impl Weather {
     }
 
     fn render_summary_day(
-        &self,
         inky: &mut Inky,
         graphics: &Graphics,
         x: i32,
         y: i32,
-        period: &ForecastPeriod,
+        period: &api::ForecastPeriod,
     ) {
         let width = 99;
 

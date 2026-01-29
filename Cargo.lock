@@ -1503,8 +1503,6 @@ dependencies = [
  "inky",
  "rkyv",
  "rkyv_util",
- "serde",
- "serde_json",
 ]
 
 [[package]]

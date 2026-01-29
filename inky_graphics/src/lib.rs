@@ -1,16 +1,10 @@
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::Result;
 use image::{Rgb, RgbImage, imageops::ColorMap};
 use inky::{Color, Inky};
 use rkyv::{primitive::ArchivedChar, rancor::Panic};
 use rkyv_util::owned::OwnedArchive;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct Config {
-    resources: String,
-}
 
 #[derive(
     Clone, Copy, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
@@ -74,9 +68,9 @@ pub enum Alignment {
 }
 
 impl Graphics {
-    pub fn new(config: &Config) -> Result<Self> {
+    pub fn new(resources_path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
-            resources: OwnedArchive::new::<Panic>(fs::read(&config.resources)?)
+            resources: OwnedArchive::new::<Panic>(fs::read(resources_path)?)
                 .unwrap(),
         })
     }

@@ -1,49 +1,49 @@
 {
-    "update_interval_secs": 3600.0,
-    "graphics": {
-        "resources": "resources/graphics.rkyv"
-    },
-    "weather": {
+    "graphics_resources": "resources/graphics.rkyv",
+    "screens": [
+        "weather",
+        "calendar",
+        "astronomy"
+    ],
+    "location": {
         "latitude": 42.753222908572496,
         "longitude": -73.65671812298604
     },
-    "calendar": {
-        "birthdays": [
-            {
-                "name": "John",
-                "date": "1964-02-06T12:00:00-05:00[America/New_York]"
-            },
-            {
-                "name": "Diane",
-                "date": "1965-08-06T07:30:00-04:00[America/New_York]"
-            },
-            {
-                "name": "William",
-                "date": "1988-11-30T12:00:00-05:00[America/New_York]"
-            },
-            {
-                "name": "Julia",
-                "date": "1992-02-14T12:00:00-05:00[America/New_York]"
-            },
-            {
-                "name": "David",
-                "date": "1995-06-08T12:32:00-04:00[America/New_York]"
-            },
-            {
-                "name": "Kyle",
-                "date": "1995-12-01T12:00:00-05:00[America/New_York]"
-            },
-            {
-                "name": "Michael",
-                "date": "1997-08-02T12:00:00-04:00[America/New_York]"
-            },
-            {
-                "name": "Madison",
-                "date": "1998-06-03T12:00:00-04:00[America/New_York]"
-            }
-        ]
-    },
-    "astronomy": {
-        "api_key": "DLeBsP5crxzOzYnSUePTXdIVXdI1yubAoU0hI0gU"
-    }
+    "birthdays": [
+        {
+            "name": "John",
+            "date": "1964-02-06T12:00:00-05:00[America/New_York]"
+        },
+        {
+            "name": "Diane",
+            "date": "1965-08-06T07:30:00-04:00[America/New_York]"
+        },
+        {
+            "name": "William",
+            "date": "1988-11-30T12:00:00-05:00[America/New_York]"
+        },
+        {
+            "name": "Julia",
+            "date": "1992-02-14T12:00:00-05:00[America/New_York]"
+        },
+        {
+            "name": "David",
+            "date": "1995-06-08T12:32:00-04:00[America/New_York]"
+        },
+        {
+            "name": "Kyle",
+            "date": "1995-12-01T12:00:00-05:00[America/New_York]"
+        },
+        {
+            "name": "Michael",
+            "date": "1997-08-02T12:00:00-04:00[America/New_York]"
+        },
+        {
+            "name": "Madison",
+            "date": "1998-06-03T12:00:00-04:00[America/New_York]"
+        }
+    ],
+    "nasa_api_key": "DLeBsP5crxzOzYnSUePTXdIVXdI1yubAoU0hI0gU",
+    "weather_update_interval_secs": 1800.0,
+    "calendar_update_interval_secs": 3600.0
 }

@@ -1,3 +1,4 @@
+use core::time::Duration;
 use std::io::{BufReader, Cursor};
 
 use anyhow::{Result, anyhow};
@@ -7,16 +8,16 @@ use image::{
 };
 use inky::{Color, Inky};
 use inky_graphics::{Alignment, Graphics, InkyColorMap, SATURATED_PALETTE};
-use jiff::Zoned;
+use jiff::{ToSpan, Unit, Zoned};
 use reqwest::Client;
 use serde::Deserialize;
+use tokio::{
+    sync::watch::{Receiver, Sender, channel},
+    task::JoinHandle,
+    time::sleep,
+};
 
-use crate::screens::error::render_error;
-
-#[derive(Deserialize)]
-pub struct Config {
-    api_key: String,
-}
+use crate::{app::Screen, config::Config, screens::error::render_error};
 
 #[derive(Deserialize)]
 struct PictureOfTheDayMetadata {
@@ -39,52 +40,64 @@ struct PictureOfTheDay {
     image: RgbImage,
 }
 
-pub struct Astronomy {
-    config: Config,
-    picture_of_the_day: Result<PictureOfTheDay>,
-    last_fetch: Option<Zoned>,
+struct Updater {
+    api_key: String,
+    client: Client,
+    sender: Sender<Result<PictureOfTheDay>>,
 }
 
-impl Astronomy {
-    pub fn new(config: Config) -> Self {
+impl Updater {
+    fn new(
+        config: &Config,
+        client: &Client,
+        sender: Sender<Result<PictureOfTheDay>>,
+    ) -> Self {
         Self {
-            config,
-            picture_of_the_day: Err(anyhow!("API not yet contacted")),
-            last_fetch: None,
+            api_key: config.nasa_api_key.clone(),
+            client: client.clone(),
+            sender,
         }
     }
 
-    pub async fn update(&mut self, client: &Client) {
-        let today = Zoned::now().start_of_day().unwrap();
-        if self
-            .last_fetch
-            .as_ref()
-            .is_none_or(|refresh| refresh.start_of_day().unwrap() != today)
-        {
-            self.picture_of_the_day = self.fetch_data(client).await;
-            self.last_fetch = Some(today);
+    async fn run(self) {
+        loop {
+            let data = self.fetch_data().await;
+            self.sender.send(data).unwrap();
+
+            let now = Zoned::now();
+            let mut update_time =
+                now.start_of_day().unwrap().checked_add(6.hours()).unwrap();
+            if update_time < now {
+                update_time = update_time.checked_add(1.day()).unwrap();
+            }
+
+            let sleep_secs = now
+                .until(&update_time)
+                .unwrap()
+                .total(Unit::Second)
+                .unwrap();
+            sleep(Duration::from_secs_f64(sleep_secs)).await;
         }
     }
 
-    pub fn force_refresh(&mut self) {
-        self.last_fetch = None;
-    }
-
-    async fn fetch_data(&self, client: &Client) -> Result<PictureOfTheDay> {
+    async fn fetch_data(&self) -> Result<PictureOfTheDay> {
         let query = format!(
             "https://api.nasa.gov/planetary/apod?api_key={}",
-            self.config.api_key
+            self.api_key
         );
-        let apod_response = client
-            .execute(client.get(query).build()?)
+        let apod_response = self
+            .client
+            .execute(self.client.get(query).build()?)
             .await?
             .text()
             .await?;
         let metadata =
             serde_json::from_str::<PictureOfTheDayMetadata>(&apod_response)?;
 
-        let picture =
-            client.execute(client.get(&metadata.url).build()?).await?;
+        let picture = self
+            .client
+            .execute(self.client.get(&metadata.url).build()?)
+            .await?;
 
         let mime_type = picture
             .headers()
@@ -107,9 +120,25 @@ impl Astronomy {
 
         Ok(PictureOfTheDay { metadata, image })
     }
+}
 
-    pub fn render(&self, inky: &mut Inky, graphics: &Graphics) {
-        let picture_of_the_day = match self.picture_of_the_day.as_ref() {
+pub struct Astronomy {
+    #[expect(unused)]
+    updater: JoinHandle<()>,
+    receiver: Receiver<Result<PictureOfTheDay>>,
+}
+
+impl Screen for Astronomy {
+    fn new(config: &Config, client: &Client) -> Self {
+        let (sender, receiver) = channel(Err(anyhow!("API not yet contacted")));
+        let updater = tokio::spawn(Updater::new(config, client, sender).run());
+
+        Self { updater, receiver }
+    }
+
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+        let data = self.receiver.borrow_and_update();
+        let picture_of_the_day = match data.as_ref() {
             Ok(data) => data,
             Err(error) => {
                 render_error(
@@ -153,5 +182,9 @@ impl Astronomy {
             "helvR08",
             Color::White,
         );
+    }
+
+    async fn updated(&mut self) {
+        self.receiver.changed().await.unwrap();
     }
 }

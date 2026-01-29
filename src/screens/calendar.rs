@@ -1,40 +1,32 @@
+use core::time::Duration;
+
 use inky::{Color, Inky};
 use inky_graphics::{Alignment, Graphics};
 use jiff::{SpanTotal, Unit, Zoned, civil::date};
-use serde::Deserialize;
+use reqwest::Client;
+use tokio::time::sleep;
 
-#[derive(Deserialize)]
-struct Birthday {
-    name: String,
-    date: String,
-}
+use crate::{
+    app::Screen,
+    config::{Birthday, Config},
+};
 
-#[derive(Deserialize)]
-pub struct Config {
+pub struct Calendar {
+    update_interval: Duration,
     birthdays: Vec<Birthday>,
 }
 
-pub struct Calendar {
-    ages: Vec<(String, Age)>,
-}
-
-impl Calendar {
-    pub fn new(config: Config) -> Self {
-        let now = Zoned::now();
-        let mut ages = Vec::new();
-        for birthday in config.birthdays.iter() {
-            ages.push((
-                birthday.name.clone(),
-                calculate_age(birthday.date.parse().unwrap(), now.clone()),
-            ));
+impl Screen for Calendar {
+    fn new(config: &Config, _: &Client) -> Self {
+        Self {
+            update_interval: Duration::from_secs_f64(
+                config.calendar_update_interval_secs,
+            ),
+            birthdays: config.birthdays.clone(),
         }
-
-        Self { ages }
     }
 
-    pub async fn update(&mut self) {}
-
-    pub fn render(&self, inky: &mut Inky, graphics: &Graphics) {
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
         let now = Zoned::now().round(Unit::Minute).unwrap();
 
         // Ages
@@ -49,12 +41,14 @@ impl Calendar {
         );
         graphics.draw_rect(inky, 630, 60, 140, 2, Color::Black);
         let mut y = 80;
-        for (name, age) in self.ages.iter() {
+        for birthday in &self.birthdays {
+            let age = calculate_age(&birthday.date, &now);
+
             graphics.draw_text(
                 inky,
                 630,
                 y,
-                &format!("{name}:"),
+                &format!("{}:", &birthday.name),
                 Alignment::Right,
                 "helvB12",
                 Color::Black,
@@ -102,8 +96,8 @@ impl Calendar {
         // Progress bar
         let year_start = now.first_of_year().unwrap().start_of_day().unwrap();
         let year_end = now.last_of_year().unwrap().end_of_day().unwrap();
-        let year = year_end - year_start.clone();
-        let year_done = now.clone() - year_start;
+        let year = &year_end - &year_start;
+        let year_done = &now - &year_start;
         let completed = year_done.total(Unit::Minute).unwrap()
             / year.total(Unit::Minute).unwrap();
         let percent =
@@ -143,6 +137,10 @@ impl Calendar {
             Color::White,
         );
     }
+
+    async fn updated(&mut self) {
+        sleep(self.update_interval).await;
+    }
 }
 
 struct Age {
@@ -152,7 +150,7 @@ struct Age {
     minutes_old: i32,
 }
 
-fn calculate_age(bd: Zoned, now: Zoned) -> Age {
+fn calculate_age(bd: &Zoned, now: &Zoned) -> Age {
     let bd_last_year = date(now.year() - 1, bd.month(), bd.day())
         .at(bd.hour(), bd.minute(), bd.second(), bd.subsec_nanosecond())
         .to_zoned(bd.time_zone().clone())
@@ -162,14 +160,14 @@ fn calculate_age(bd: Zoned, now: Zoned) -> Age {
         .to_zoned(bd.time_zone().clone())
         .unwrap();
 
-    let last_bd = if bd_this_year <= now {
+    let last_bd = if &bd_this_year <= now {
         bd_this_year
     } else {
         bd_last_year
     };
 
     let years_old = last_bd.year() - bd.year();
-    let days_old = (now - last_bd)
+    let days_old = (now - &last_bd)
         .total(SpanTotal::from(Unit::Day).days_are_24_hours())
         .unwrap();
     let hours_old = days_old.fract() * 24.0;

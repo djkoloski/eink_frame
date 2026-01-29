@@ -9,5 +9,3 @@ image.workspace = true
 inky.workspace = true
 rkyv.workspace = true
 rkyv_util.workspace = true
-serde.workspace = true
-serde_json.workspace = true
