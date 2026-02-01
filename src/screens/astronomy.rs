@@ -7,7 +7,9 @@ use image::{
     imageops::{FilterType, dither},
 };
 use inky::{Color, Inky};
-use inky_graphics::{Alignment, Graphics, InkyColorMap, SATURATED_PALETTE};
+use inky_graphics::{
+    Alignment, Graphics, InkyColorMap, Rect, SATURATED_PALETTE,
+};
 use jiff::{ToSpan, Unit, Zoned};
 use reqwest::Client;
 use serde::Deserialize;
@@ -22,7 +24,7 @@ use crate::{app::Screen, config::Config, screens::error::render_error};
 #[derive(Deserialize)]
 struct PictureOfTheDayMetadata {
     #[expect(unused)]
-    copyright: String,
+    copyright: Option<String>,
     #[expect(unused)]
     date: String,
     #[expect(unused)]
@@ -114,7 +116,7 @@ impl Updater {
         }
         let image = reader.decode()?;
         let mut image = image
-            .resize_to_fill(800, 450, FilterType::Lanczos3)
+            .resize_to_fill(800, 480, FilterType::Lanczos3)
             .into_rgb8();
         dither(&mut image, &InkyColorMap(SATURATED_PALETTE));
 
@@ -136,7 +138,7 @@ impl Screen for Astronomy {
         Self { updater, receiver }
     }
 
-    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, rect: Rect) {
         let data = self.receiver.borrow_and_update();
         let picture_of_the_day = match data.as_ref() {
             Ok(data) => data,
@@ -144,6 +146,7 @@ impl Screen for Astronomy {
                 render_error(
                     inky,
                     graphics,
+                    rect,
                     "Astronomy picture of the day unavailable",
                     "An error occurred while fetching astronomy picture of \
                      the day:",
@@ -153,7 +156,13 @@ impl Screen for Astronomy {
             }
         };
 
-        graphics.draw_image(inky, 0, 30, &picture_of_the_day.image);
+        graphics.draw_image_in(
+            inky,
+            &rect,
+            0.5,
+            0.5,
+            &picture_of_the_day.image,
+        );
 
         const TITLE_SPACE: i32 = 4;
         let title_width = graphics.calculate_text_width(
@@ -161,15 +170,17 @@ impl Screen for Astronomy {
             "helvR08",
         );
         let x = inky.resolution_x() as i32 - title_width - 2 * TITLE_SPACE;
-        let y = inky.resolution_y() as i32 - 12 - 2 * TITLE_SPACE;
+        let y = inky.resolution_y() as i32 - 28 - 2 * TITLE_SPACE;
         let width = title_width + 2 * TITLE_SPACE;
         let height = 12 * 2 * TITLE_SPACE;
         graphics.draw_rounded_rect(
             inky,
-            x,
-            y,
-            width + 4,
-            height + 4,
+            &Rect {
+                x,
+                y,
+                width: width + 4,
+                height: height + 4,
+            },
             4,
             Color::Black,
         );

@@ -1,39 +1,35 @@
 use anyhow::Error;
 use inky::{Color, Inky};
-use inky_graphics::{Alignment, Graphics};
+use inky_graphics::{Alignment, Graphics, Rect};
 
 pub fn render_error(
     inky: &mut Inky,
     graphics: &Graphics,
+    rect: Rect,
     title: &str,
     summary: &str,
     error: &Error,
 ) {
-    let status_height = 30;
+    let status_height = 16;
     let box_height = 180;
 
     let client_x = 0;
-    let client_y = status_height;
+    let client_y = 0;
     let client_width = inky.resolution_x() as i32;
     let client_height = inky.resolution_y() as i32 - status_height;
 
     let center_x = client_x + client_width / 2;
     let center_y = client_y + client_height / 2;
 
-    graphics.dither_rect(
-        inky,
-        client_x,
-        client_y,
-        client_width,
-        client_height,
-        Color::Black,
-    );
+    graphics.dither_rect(inky, &rect, Color::Black);
     graphics.draw_rect(
         inky,
-        client_x,
-        client_y + client_height / 2 - box_height / 2,
-        client_width,
-        box_height,
+        &Rect {
+            x: client_x,
+            y: client_y + client_height / 2 - box_height / 2,
+            width: client_width,
+            height: box_height,
+        },
         Color::Black,
     );
 
@@ -41,18 +37,25 @@ pub fn render_error(
     for bar_width in [15, 10, 5] {
         graphics.draw_rect(
             inky,
-            client_x,
-            client_y + client_height / 2 - offset - bar_width - bar_width / 2,
-            client_width,
-            bar_width,
+            &Rect {
+                x: client_x,
+                y: client_y + client_height / 2
+                    - offset
+                    - bar_width
+                    - bar_width / 2,
+                width: client_width,
+                height: bar_width,
+            },
             Color::Black,
         );
         graphics.draw_rect(
             inky,
-            client_x,
-            client_y + client_height / 2 + offset + bar_width / 2,
-            client_width,
-            bar_width,
+            &Rect {
+                x: client_x,
+                y: client_y + client_height / 2 + offset + bar_width / 2,
+                width: client_width,
+                height: bar_width,
+            },
             Color::Black,
         );
         offset += bar_width + bar_width / 2;

@@ -671,6 +671,8 @@ dependencies = [
  "image",
  "inky_graphics",
  "rkyv",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

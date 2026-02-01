@@ -1,7 +1,7 @@
 use core::time::Duration;
 
 use inky::{Color, Inky};
-use inky_graphics::{Alignment, Graphics};
+use inky_graphics::{Graphics, Rect};
 use jiff::{Unit, Zoned};
 use nmrs::{Network, NetworkManager};
 use reqwest::Client;
@@ -65,43 +65,36 @@ impl Screen for Status {
         Self { updater, receiver }
     }
 
-    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, mut rect: Rect) {
         let data = self.receiver.borrow_and_update();
 
         let now = Zoned::now().round(Unit::Minute).unwrap();
-        let y = 0;
 
         // Status bar
-        graphics.draw_rect(
+        graphics.draw_rect(inky, &rect, Color::Black);
+        rect = rect.shrink(5, 0, 5, 2);
+
+        // Hostname
+        graphics.draw_text_in(
             inky,
-            0,
-            y,
-            inky.resolution_x() as i32,
-            30,
-            Color::Black,
+            rect.clone(),
+            0.0,
+            0.5,
+            data.hostname.as_deref().unwrap_or("unknown"),
+            "helvR08",
+            Color::White,
         );
 
         // Update time
         let last_updated =
             now.strftime("Last updated at %-I:%M %p").to_string();
-        graphics.draw_text(
+        graphics.draw_text_in(
             inky,
-            inky.resolution_x() as i32 / 2,
-            y + 20,
+            rect.clone(),
+            0.5,
+            0.5,
             &last_updated,
-            Alignment::Center,
-            "helvR12",
-            Color::White,
-        );
-
-        // Hostname
-        graphics.draw_text(
-            inky,
-            10,
-            y + 20,
-            data.hostname.as_deref().unwrap_or("unknown"),
-            Alignment::Left,
-            "helvR12",
+            "helvR08",
             Color::White,
         );
 
@@ -115,41 +108,30 @@ impl Screen for Status {
             wifi_status = "Wi-Fi disconnected";
             bars = 0;
         }
-        graphics.draw_text(
+        let mut bars_rect = rect.split_off_right(24).shrink(0, 3, 5, 2);
+        graphics.draw_text_in(
             inky,
-            inky.resolution_x() as i32 - 40,
-            y + 20,
-            &wifi_status,
-            Alignment::Right,
-            "helvR12",
+            rect.clone(),
+            1.0,
+            0.5,
+            wifi_status,
+            "helvR08",
             Color::White,
         );
         for i in 0..4 {
             const BAR_WIDTH: i32 = 4;
-            const BAR_SPACING: i32 = 2;
+            const BAR_HEIGHT: i32 = 2;
+            const BAR_SPACING: i32 = 1;
             const BAR_BORDER: i32 = 1;
 
-            let x = inky.resolution_x() as i32
-                - 10
-                - 4 * BAR_WIDTH
-                - 3 * BAR_SPACING
-                + i * BAR_WIDTH
-                + i * BAR_SPACING;
-            let y = y + 22 - (i + 1) * BAR_WIDTH;
-            let height = (i + 1) * BAR_WIDTH;
+            let mut r = bars_rect.split_off_left(BAR_WIDTH);
+            r.split_off_top(BAR_HEIGHT * (3 - i));
             if i < bars {
-                graphics.draw_rect(inky, x, y, BAR_WIDTH, height, Color::White);
+                graphics.draw_rect(inky, &r, Color::White);
             } else {
-                graphics.draw_box(
-                    inky,
-                    x,
-                    y,
-                    BAR_WIDTH,
-                    height,
-                    BAR_BORDER,
-                    Color::White,
-                );
+                graphics.draw_box(inky, &r, BAR_BORDER, Color::White);
             }
+            bars_rect.split_off_left(BAR_SPACING);
         }
     }
 

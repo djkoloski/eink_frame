@@ -1,14 +1,21 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context as _, Result};
 use image::{GenericImageView, ImageReader};
 use inky_graphics::{Bitmap, Character, Font, Resources};
 use rkyv::rancor::Failure;
+use serde::Deserialize;
 
 fn load_font(path: impl AsRef<Path>) -> Result<Font> {
     let mut font = Font {
         atlas: Vec::new(),
         chars: HashMap::new(),
+        height: 0,
+        baseline: 0,
     };
 
     let text = fs::read_to_string(path)?;
@@ -24,6 +31,26 @@ fn load_font(path: impl AsRef<Path>) -> Result<Font> {
         };
 
         match command {
+            "FONT_ASCENT" => {
+                let ascent = pieces
+                    .next()
+                    .context("expected font ascent")?
+                    .parse::<u8>()?;
+
+                let line = lines
+                    .next()
+                    .context("expected font descent after font ascent")?;
+                let mut pieces = line.split(' ');
+                assert_eq!(pieces.next(), Some("FONT_DESCENT"));
+
+                let descent = pieces
+                    .next()
+                    .context("expected font descent")?
+                    .parse::<u8>()?;
+
+                font.height = ascent + descent;
+                font.baseline = ascent;
+            }
             "ENCODING" => {
                 let index = pieces
                     .next()
@@ -93,6 +120,20 @@ fn load_font(path: impl AsRef<Path>) -> Result<Font> {
     Ok(font)
 }
 
+#[derive(Deserialize)]
+struct ManifestImage {
+    path: String,
+    bitmaps: HashMap<String, ManifestBitmap>,
+}
+
+#[derive(Deserialize)]
+struct ManifestBitmap {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
 fn main() -> Result<()> {
     let mut resources = Resources {
         fonts: HashMap::new(),
@@ -111,57 +152,37 @@ fn main() -> Result<()> {
         );
     }
 
-    let icons = [
-        ("skc", 0),
-        ("few", 9),
-        ("sct", 18),
-        ("bkn", 27),
-        ("ovc", 35),
-        ("wind_skc", 1),
-        ("wind_few,wind_sct", 19),
-        ("wind_bkn", 28),
-        ("wind_ovc", 37),
-        ("snow", 2),
-        ("rain_snow,rain_sleet", 11),
-        ("fzra,rain_fzra,snow_fzra", 20),
-        ("snow_sleet,sleet", 29),
-        ("rain,rain_showers", 3),
-        ("rain_showers_hi", 12),
-        ("tsra,tsra_sct", 4),
-        ("tsra_hi", 13),
-        ("tornado", 5),
-        ("hurricane,tropical_storm", 6),
-        ("dust", 7),
-        ("smoke", 16),
-        ("haze", 25),
-        ("hot", 8),
-        ("cold", 17),
-        ("blizzard", 26),
-        ("fog", 35),
-    ];
-    let weather_icons =
-        ImageReader::open("bitmaps/weather_icons_48x48.png")?.decode()?;
-    for (icon, index) in icons {
-        let mut bitmap = Bitmap {
-            bits: vec![0u8; 48 * 48 / 8],
-            width: 48,
-            height: 48,
-        };
+    let manifest = fs::read_to_string("bitmaps/manifest.json")?;
+    let manifest = serde_json::from_str::<Vec<ManifestImage>>(&manifest)?;
 
-        let x = index % 9 * 48;
-        let y = index / 9 * 48;
-        for dy in 0..48 {
-            for dx in 0..48 {
-                if weather_icons.get_pixel(x + dx, y + dy)[0] > 0 {
-                    let i = dx + dy * 48;
-                    let byte = i / 8;
-                    let bit = i % 8;
-                    bitmap.bits[byte as usize] |= 1 << bit;
+    for man_image in manifest {
+        let mut path = PathBuf::from("bitmaps");
+        path.push(man_image.path);
+        let image = ImageReader::open(&path)?.decode()?;
+
+        for (name, man_bitmap) in man_image.bitmaps {
+            let bytes = (man_bitmap.width * man_bitmap.height).div_ceil(8);
+            let mut bitmap = Bitmap {
+                bits: vec![0u8; bytes as usize],
+                width: man_bitmap.width,
+                height: man_bitmap.height,
+            };
+
+            for dy in 0..man_bitmap.height {
+                for dx in 0..man_bitmap.width {
+                    if image.get_pixel(man_bitmap.x + dx, man_bitmap.y + dy)[0]
+                        > 0
+                    {
+                        let i = dx + dy * man_bitmap.width;
+                        let byte = i / 8;
+                        let bit = i % 8;
+                        bitmap.bits[byte as usize] |= 1 << bit;
+                    }
                 }
             }
-        }
 
-        resources.bitmaps.insert(icon.to_string(), bitmap);
+            resources.bitmaps.insert(name, bitmap);
+        }
     }
 
     let bytes = rkyv::to_bytes::<Failure>(&resources)?;

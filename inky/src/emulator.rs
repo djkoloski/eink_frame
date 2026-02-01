@@ -23,6 +23,7 @@ impl Inky {
 
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .read(true)
             .write(true)
             .open(&path)?;
@@ -39,6 +40,7 @@ impl Inky {
         tokio::spawn(async move {
             let mut file = OpenOptions::new()
                 .create(true)
+                .truncate(false)
                 .read(true)
                 .write(true)
                 .open(&path)
@@ -57,9 +59,9 @@ impl Inky {
 
                 const BUTTONS: [Button; 4] =
                     [Button::A, Button::B, Button::C, Button::D];
-                for i in 0..4 {
+                for (i, button) in BUTTONS.iter().enumerate() {
                     if events & (1 << i) != 0 {
-                        on_button(BUTTONS[i]);
+                        on_button(*button);
                     }
                 }
 

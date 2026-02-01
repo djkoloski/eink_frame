@@ -1,3 +1,5 @@
+mod rect;
+
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::Result;
@@ -5,6 +7,8 @@ use image::{Rgb, RgbImage, imageops::ColorMap};
 use inky::{Color, Inky};
 use rkyv::{primitive::ArchivedChar, rancor::Panic};
 use rkyv_util::owned::OwnedArchive;
+
+pub use self::rect::*;
 
 #[derive(
     Clone, Copy, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
@@ -23,6 +27,8 @@ pub struct Character {
 pub struct Font {
     pub atlas: Vec<u8>,
     pub chars: HashMap<char, Character>,
+    pub height: u8,
+    pub baseline: u8,
 }
 
 impl ArchivedFont {
@@ -34,8 +40,8 @@ impl ArchivedFont {
         let character = self.get_character(c);
 
         let index = x + y * character.bm_width as usize;
-        let byte = (index / 8) as usize;
-        let bit = (index % 8) as usize;
+        let byte = index / 8;
+        let bit = index % 8;
 
         self.atlas[character.atlas_start.to_native() as usize + byte]
             & (1 << bit)
@@ -75,6 +81,10 @@ impl Graphics {
         })
     }
 
+    pub fn get_bitmap(&self, name: &str) -> Option<&ArchivedBitmap> {
+        self.resources.bitmaps.get(name)
+    }
+
     pub fn draw_line(
         &self,
         inky: &mut Inky,
@@ -108,35 +118,19 @@ impl Graphics {
         }
     }
 
-    pub fn draw_rect(
-        &self,
-        inky: &mut Inky,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-        color: Color,
-    ) {
-        for dy in 0..height {
-            for dx in 0..width {
-                inky.set(x + dx, y + dy, color);
+    pub fn draw_rect(&self, inky: &mut Inky, rect: &Rect, color: Color) {
+        for dy in 0..rect.height {
+            for dx in 0..rect.width {
+                inky.set(rect.x + dx, rect.y + dy, color);
             }
         }
     }
 
-    pub fn dither_rect(
-        &self,
-        inky: &mut Inky,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-        color: Color,
-    ) {
-        for dy in 0..height {
-            for dx in 0..width {
-                let px = x + dx;
-                let py = y + dy;
+    pub fn dither_rect(&self, inky: &mut Inky, rect: &Rect, color: Color) {
+        for dy in 0..rect.height {
+            for dx in 0..rect.width {
+                let px = rect.x + dx;
+                let py = rect.y + dy;
                 if py % 2 == 0 && (px + py) % 4 == 0 {
                     inky.set(px, py, color);
                 }
@@ -147,24 +141,50 @@ impl Graphics {
     pub fn draw_box(
         &self,
         inky: &mut Inky,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
+        rect: &Rect,
         border: i32,
         color: Color,
     ) {
-        self.draw_rect(inky, x, y, width, border, color);
-        self.draw_rect(inky, x, y + border, border, height - 2 * border, color);
         self.draw_rect(
             inky,
-            x + width - border,
-            y + border,
-            border,
-            height - 2 * border,
+            &Rect {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: border,
+            },
             color,
         );
-        self.draw_rect(inky, x, y + height - border, width, border, color);
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x,
+                y: rect.y + border,
+                width: border,
+                height: rect.height - 2 * border,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x + rect.width - border,
+                y: rect.y + border,
+                width: border,
+                height: rect.height - 2 * border,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x,
+                y: rect.y + rect.height - border,
+                width: rect.width,
+                height: border,
+            },
+            color,
+        );
     }
 
     pub fn draw_circle(
@@ -188,12 +208,12 @@ impl Graphics {
             inky.set(center_x - cx, center_y - cy, color);
             inky.set(center_x - cy, center_y - cx, color);
 
-            cy = cy + 1;
+            cy += 1;
             t1 += cy;
             let t2 = t1 - cx;
             if t2 >= 0 {
                 t1 = t2;
-                cx = cx - 1;
+                cx -= 1;
             }
         }
     }
@@ -201,10 +221,7 @@ impl Graphics {
     pub fn draw_rounded_rect(
         &self,
         inky: &mut Inky,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
+        rect: &Rect,
         radius: i32,
         color: Color,
     ) {
@@ -212,43 +229,71 @@ impl Graphics {
         let mut cx = radius;
         let mut cy = 0;
         while cx >= cy {
-            let qy = y + height + cy - radius - 1;
-            for qx in (x - cx + radius)..(x + width + cx - radius) {
+            let qy = rect.y + rect.height + cy - radius - 1;
+            for qx in
+                (rect.x - cx + radius)..(rect.x + rect.width + cx - radius)
+            {
                 inky.set(qx, qy, color);
             }
 
-            let qy = y + height + cx - radius - 1;
-            for qx in (x - cy + radius)..(x + width + cy - radius) {
+            let qy = rect.y + rect.height + cx - radius - 1;
+            for qx in
+                (rect.x - cy + radius)..(rect.x + rect.width + cy - radius)
+            {
                 inky.set(qx, qy, color);
             }
 
-            let qy = y - cy + radius;
-            for qx in (x - cx + radius)..(x + width + cx - radius) {
+            let qy = rect.y - cy + radius;
+            for qx in
+                (rect.x - cx + radius)..(rect.x + rect.width + cx - radius)
+            {
                 inky.set(qx, qy, color);
             }
 
-            let qy = y - cx + radius;
-            for qx in (x - cy + radius)..(x + width + cy - radius) {
+            let qy = rect.y - cx + radius;
+            for qx in
+                (rect.x - cy + radius)..(rect.x + rect.width + cy - radius)
+            {
                 inky.set(qx, qy, color);
             }
 
-            cy = cy + 1;
+            cy += 1;
             t1 += cy;
             let t2 = t1 - cx;
             if t2 >= 0 {
                 t1 = t2;
-                cx = cx - 1;
+                cx -= 1;
             }
         }
 
-        self.draw_rect(inky, x + radius, y, width - radius * 2, radius, color);
-        self.draw_rect(inky, x, y + radius, width, height - 2 * radius, color);
         self.draw_rect(
             inky,
-            x + radius,
-            y + height - radius,
-            width - 2 * radius,
-            1,
+            &Rect {
+                x: rect.x + radius,
+                y: rect.y,
+                width: rect.width - radius * 2,
+                height: radius,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x,
+                y: rect.y + radius,
+                width: rect.width,
+                height: rect.height - 2 * radius,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x + radius,
+                y: rect.y + rect.height - radius,
+                width: rect.width - 2 * radius,
+                height: 1,
+            },
             color,
         );
     }
@@ -256,10 +301,7 @@ impl Graphics {
     pub fn draw_rounded_box(
         &self,
         inky: &mut Inky,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
+        rect: &Rect,
         radius: i32,
         color: Color,
     ) {
@@ -268,47 +310,85 @@ impl Graphics {
         let mut cy = 0;
         while cx >= cy {
             inky.set(
-                x + width + cx - radius - 1,
-                y + height + cy - radius - 1,
+                rect.x + rect.width + cx - radius - 1,
+                rect.y + rect.height + cy - radius - 1,
                 color,
             );
             inky.set(
-                x + width + cy - radius - 1,
-                y + height + cx - radius - 1,
+                rect.x + rect.width + cy - radius - 1,
+                rect.y + rect.height + cx - radius - 1,
                 color,
             );
-            inky.set(x + width + cx - radius - 1, y - cy + radius, color);
-            inky.set(x + width + cy - radius - 1, y - cx + radius, color);
-            inky.set(x - cx + radius, y + height + cy - radius - 1, color);
-            inky.set(x - cy + radius, y + height + cx - radius - 1, color);
-            inky.set(x - cx + radius, y - cy + radius, color);
-            inky.set(x - cy + radius, y - cx + radius, color);
+            inky.set(
+                rect.x + rect.width + cx - radius - 1,
+                rect.y - cy + radius,
+                color,
+            );
+            inky.set(
+                rect.x + rect.width + cy - radius - 1,
+                rect.y - cx + radius,
+                color,
+            );
+            inky.set(
+                rect.x - cx + radius,
+                rect.y + rect.height + cy - radius - 1,
+                color,
+            );
+            inky.set(
+                rect.x - cy + radius,
+                rect.y + rect.height + cx - radius - 1,
+                color,
+            );
+            inky.set(rect.x - cx + radius, rect.y - cy + radius, color);
+            inky.set(rect.x - cy + radius, rect.y - cx + radius, color);
 
-            cy = cy + 1;
+            cy += 1;
             t1 += cy;
             let t2 = t1 - cx;
             if t2 >= 0 {
                 t1 = t2;
-                cx = cx - 1;
+                cx -= 1;
             }
         }
 
-        self.draw_rect(inky, x + radius, y, width - radius * 2, 1, color);
-        self.draw_rect(inky, x, y + radius, 1, height - 2 * radius, color);
         self.draw_rect(
             inky,
-            x + width - 1,
-            y + radius,
-            1,
-            height - 2 * radius,
+            &Rect {
+                x: rect.x + radius,
+                y: rect.y,
+                width: rect.width - radius * 2,
+                height: 1,
+            },
             color,
         );
         self.draw_rect(
             inky,
-            x + radius,
-            y + height - 1,
-            width - 2 * radius,
-            1,
+            &Rect {
+                x: rect.x,
+                y: rect.y + radius,
+                width: 1,
+                height: rect.height - 2 * radius,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x + rect.width - 1,
+                y: rect.y + radius,
+                width: 1,
+                height: rect.height - 2 * radius,
+            },
+            color,
+        );
+        self.draw_rect(
+            inky,
+            &Rect {
+                x: rect.x + radius,
+                y: rect.y + rect.height - 1,
+                width: rect.width - 2 * radius,
+                height: 1,
+            },
             color,
         );
     }
@@ -324,6 +404,7 @@ impl Graphics {
         width
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn draw_text(
         &self,
         inky: &mut Inky,
@@ -360,32 +441,81 @@ impl Graphics {
         }
     }
 
-    pub fn draw_bitmap(
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_text_in(
         &self,
         inky: &mut Inky,
-        x: i32,
-        y: i32,
+        rect: Rect,
+        horizontal_align: f32,
+        vertical_align: f32,
+        text: &str,
+        font: &str,
+        color: Color,
+    ) {
+        let width = self.calculate_text_width(text, font);
+
+        let font = &self.resources.fonts[font];
+        let inner = rect.align_inner(
+            width,
+            font.height as i32,
+            horizontal_align,
+            vertical_align,
+        );
+
+        let mut x = inner.x;
+        let mut y = inner.y + font.baseline as i32;
+        for c in text.chars() {
+            let character = &font.get_character(c);
+            let ox = x + character.bm_x as i32;
+            let oy = y - character.bm_y as i32;
+
+            for cy in 0..character.bm_height as usize {
+                for cx in 0..character.bm_width as usize {
+                    if font.get_pixel(c, cx, cy) {
+                        inky.set(ox + cx as i32, oy - cy as i32, color);
+                    }
+                }
+            }
+
+            x += character.advance_x as i32;
+            y += character.advance_y as i32;
+        }
+    }
+
+    pub fn draw_bitmap_in(
+        &self,
+        inky: &mut Inky,
+        rect: Rect,
+        horizontal_align: f32,
+        vertical_align: f32,
         bitmap: &str,
         color: Color,
     ) {
         let bitmap = &self.resources.bitmaps[bitmap];
+        let rect = rect.align_inner(
+            bitmap.width.to_native() as i32,
+            bitmap.height.to_native() as i32,
+            horizontal_align,
+            vertical_align,
+        );
         for dy in 0..bitmap.width.to_native() as usize {
             for dx in 0..bitmap.height.to_native() as usize {
                 let index = dx + dy * bitmap.height.to_native() as usize;
                 let byte = index / 8;
                 let bit = index % 8;
                 if bitmap.bits[byte] & (1 << bit) != 0 {
-                    inky.set(x + dx as i32, y + dy as i32, color);
+                    inky.set(rect.x + dx as i32, rect.y + dy as i32, color);
                 }
             }
         }
     }
 
-    pub fn draw_image(
+    pub fn draw_image_in(
         &self,
         inky: &mut Inky,
-        x: i32,
-        y: i32,
+        rect: &Rect,
+        horizontal_align: f32,
+        vertical_align: f32,
         image: &RgbImage,
     ) {
         const COLOR_MAP: [Color; 6] = [
@@ -397,13 +527,30 @@ impl Graphics {
             Color::Green,
         ];
 
-        for dy in 0..image.height() {
-            for dx in 0..image.width() {
+        let draw_width = rect.width.min(image.width() as i32);
+        let draw_height = rect.height.min(image.height() as i32);
+
+        let x_off = ((rect.width - image.width() as i32) as f32
+            * horizontal_align)
+            .round() as i32;
+        let draw_x = rect.x.max(rect.x + x_off);
+        let sub_x = (rect.x - draw_x).max(0);
+        let y_off = ((rect.height - image.height() as i32) as f32
+            * vertical_align)
+            .round() as i32;
+        let draw_y = rect.y.max(rect.y + y_off);
+        let sub_y = (rect.y - draw_y).max(0);
+
+        for dy in 0..draw_height {
+            for dx in 0..draw_width {
                 let color_index = DESATURATED_PALETTE
                     .iter()
-                    .position(|p| p == image.get_pixel(dx, dy))
+                    .position(|p| {
+                        p == image
+                            .get_pixel((sub_x + dx) as u32, (sub_y + dy) as u32)
+                    })
                     .unwrap();
-                inky.set(x + dx as i32, y + dy as i32, COLOR_MAP[color_index]);
+                inky.set(draw_x + dx, draw_y + dy, COLOR_MAP[color_index]);
             }
         }
     }

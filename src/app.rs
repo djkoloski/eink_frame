@@ -7,7 +7,7 @@ use std::{env, pin::Pin, sync::Arc, task::Context};
 use anyhow::{Result, bail};
 use futures::task::AtomicWaker;
 use inky::{Button, Inky};
-use inky_graphics::Graphics;
+use inky_graphics::{Graphics, Rect};
 use reqwest::Client;
 use tokio::{fs, select};
 
@@ -15,7 +15,7 @@ use crate::{Config, screens::*};
 
 pub trait Screen {
     fn new(config: &Config, client: &Client) -> Self;
-    fn render(&mut self, inky: &mut Inky, graphics: &Graphics);
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, rect: Rect);
     async fn updated(&mut self);
 }
 
@@ -35,11 +35,11 @@ impl Screens {
         })
     }
 
-    pub fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+    pub fn render(&mut self, inky: &mut Inky, graphics: &Graphics, rect: Rect) {
         match self {
-            Self::Weather(screen) => screen.render(inky, graphics),
-            Self::Calendar(screen) => screen.render(inky, graphics),
-            Self::Astronomy(screen) => screen.render(inky, graphics),
+            Self::Weather(screen) => screen.render(inky, graphics, rect),
+            Self::Calendar(screen) => screen.render(inky, graphics, rect),
+            Self::Astronomy(screen) => screen.render(inky, graphics, rect),
         }
     }
 
@@ -174,8 +174,17 @@ impl App {
 
             self.inky.clear();
 
-            current.render(&mut self.inky, &self.graphics);
-            self.status.render(&mut self.inky, &self.graphics);
+            let mut current_rect = Rect::new(
+                0,
+                0,
+                self.inky.resolution_x() as i32,
+                self.inky.resolution_y() as i32,
+            );
+            let status_rect = current_rect.split_off_bottom(16);
+
+            current.render(&mut self.inky, &self.graphics, current_rect);
+            self.status
+                .render(&mut self.inky, &self.graphics, status_rect);
 
             self.inky.show().await?;
 

@@ -1,7 +1,7 @@
 use core::time::Duration;
 
 use inky::{Color, Inky};
-use inky_graphics::{Alignment, Graphics};
+use inky_graphics::{Alignment, Graphics, Rect};
 use jiff::{SpanTotal, Unit, Zoned, civil::date};
 use reqwest::Client;
 use tokio::time::sleep;
@@ -26,7 +26,7 @@ impl Screen for Calendar {
         }
     }
 
-    fn render(&mut self, inky: &mut Inky, graphics: &Graphics) {
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, mut rect: Rect) {
         let now = Zoned::now().round(Unit::Minute).unwrap();
 
         // Ages
@@ -39,7 +39,16 @@ impl Screen for Calendar {
             "helvB12",
             Color::Black,
         );
-        graphics.draw_rect(inky, 630, 60, 140, 2, Color::Black);
+        graphics.draw_rect(
+            inky,
+            &Rect {
+                x: 630,
+                y: 60,
+                width: 140,
+                height: 2,
+            },
+            Color::Black,
+        );
         let mut y = 80;
         for birthday in &self.birthdays {
             let age = calculate_age(&birthday.date, &now);
@@ -105,34 +114,24 @@ impl Screen for Calendar {
         graphics.draw_text(
             inky,
             inky.resolution_x() as i32 - 10,
-            450,
+            440,
             &percent,
             Alignment::Right,
             "helvB12",
             Color::Black,
         );
 
-        const BAR_X: i32 = 10;
-        const BAR_Y: i32 = 460;
-        const BAR_WIDTH: i32 = 780;
-        const BAR_HEIGHT: i32 = 10;
+        let mut bar_rect = rect.split_off_bottom(20).shrink(5, 5, 5, 5);
+
         const BAR_RADIUS: i32 = 5;
         const BAR_BORDER: i32 = 2;
+        graphics.draw_rounded_rect(inky, &bar_rect, BAR_RADIUS, Color::Black);
+        let fill_rect = bar_rect
+            .split_frac_off_left(completed as f32)
+            .shrink(BAR_BORDER, BAR_BORDER, BAR_BORDER, BAR_BORDER);
         graphics.draw_rounded_rect(
             inky,
-            BAR_X,
-            BAR_Y,
-            BAR_WIDTH,
-            BAR_HEIGHT,
-            BAR_RADIUS,
-            Color::Black,
-        );
-        graphics.draw_rounded_rect(
-            inky,
-            BAR_X + BAR_BORDER,
-            BAR_Y + BAR_BORDER,
-            ((BAR_WIDTH - BAR_BORDER * 2) as f64 * completed).round() as i32,
-            BAR_HEIGHT - BAR_BORDER * 2,
+            &fill_rect,
             BAR_RADIUS - BAR_BORDER,
             Color::White,
         );
