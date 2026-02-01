@@ -1,0 +1,95 @@
+{
+  "@context": [
+    "https://geojson.org/geojson-ld/geojson-context.jsonld",
+    {
+      "@version": "1.1",
+      "wx": "https://api.weather.gov/ontology#",
+      "s": "https://schema.org/",
+      "geo": "http://www.opengis.net/ont/geosparql#",
+      "unit": "http://codes.wmo.int/common/unit/",
+      "@vocab": "https://api.weather.gov/ontology#",
+      "geometry": {
+        "@id": "s:GeoCoordinates",
+        "@type": "geo:wktLiteral"
+      },
+      "city": "s:addressLocality",
+      "state": "s:addressRegion",
+      "distance": {
+        "@id": "s:Distance",
+        "@type": "s:QuantitativeValue"
+      },
+      "bearing": {
+        "@type": "s:QuantitativeValue"
+      },
+      "value": {
+        "@id": "s:value"
+      },
+      "unitCode": {
+        "@id": "s:unitCode",
+        "@type": "@id"
+      },
+      "forecastOffice": {
+        "@type": "@id"
+      },
+      "forecastGridData": {
+        "@type": "@id"
+      },
+      "publicZone": {
+        "@type": "@id"
+      },
+      "county": {
+        "@type": "@id"
+      }
+    }
+  ],
+  "id": "https://api.weather.gov/points/42.7532,-73.6567",
+  "type": "Feature",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -73.6567,
+      42.7532
+    ]
+  },
+  "properties": {
+    "@id": "https://api.weather.gov/points/42.7532,-73.6567",
+    "@type": "wx:Point",
+    "cwa": "ALY",
+    "type": "land",
+    "forecastOffice": "https://api.weather.gov/offices/ALY",
+    "gridId": "ALY",
+    "gridX": 75,
+    "gridY": 68,
+    "forecast": "https://api.weather.gov/gridpoints/ALY/75,68/forecast",
+    "forecastHourly": "https://api.weather.gov/gridpoints/ALY/75,68/forecast/hourly",
+    "forecastGridData": "https://api.weather.gov/gridpoints/ALY/75,68",
+    "observationStations": "https://api.weather.gov/gridpoints/ALY/75,68/stations",
+    "relativeLocation": {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.675321,
+          42.735812
+        ]
+      },
+      "properties": {
+        "city": "Troy",
+        "state": "NY",
+        "distance": {
+          "unitCode": "wmoUnit:m",
+          "value": 2459.7725383441
+        },
+        "bearing": {
+          "unitCode": "wmoUnit:degree_(angle)",
+          "value": 38
+        }
+      }
+    },
+    "forecastZone": "https://api.weather.gov/zones/forecast/NYZ053",
+    "county": "https://api.weather.gov/zones/county/NYC083",
+    "fireWeatherZone": "https://api.weather.gov/zones/fire/NYZ208",
+    "timeZone": "America/New_York",
+    "radarStation": "KENX"
+  }
+}

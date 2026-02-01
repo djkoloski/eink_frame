@@ -11,7 +11,7 @@ fn julian_to_timestamp(julian: f64) -> Timestamp {
 }
 
 pub fn calculate_sun(
-    today: Zoned,
+    today: &Zoned,
     latitude: f64,
     longitude: f64,
     elevation: f64,
@@ -22,7 +22,7 @@ pub fn calculate_sun(
         .at(0, 0, 0, 0)
         .to_zoned(tz.clone())
         .unwrap();
-    let days_since_jan_1_2020 = (today - midnight_jan_1_2020)
+    let days_since_jan_1_2020 = (today - &midnight_jan_1_2020)
         .total(SpanTotal::from(Unit::Day).days_are_24_hours())
         .unwrap()
         .floor();

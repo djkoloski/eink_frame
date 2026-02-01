@@ -1,4 +1,7 @@
+use jiff::Zoned;
 use serde::Deserialize;
+
+use crate::de::rfc_9557;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,16 +44,18 @@ pub struct ForecastProperties {
     pub periods: Vec<ForecastPeriod>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ForecastPeriod {
     #[expect(unused)]
     pub number: u32,
     #[expect(unused)]
     pub name: String,
-    pub start_time: String,
+    #[serde(deserialize_with = "rfc_9557")]
+    pub start_time: Zoned,
     #[expect(unused)]
-    pub end_time: String,
+    #[serde(deserialize_with = "rfc_9557")]
+    pub end_time: Zoned,
     #[expect(unused)]
     pub is_daytime: bool,
     pub temperature: f32,
@@ -70,7 +75,7 @@ pub struct ForecastPeriod {
     pub icon: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ForecastUnit {
     pub value: f32,

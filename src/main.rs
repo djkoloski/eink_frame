@@ -1,6 +1,7 @@
 mod app;
 mod chart;
 mod config;
+mod de;
 mod screens;
 mod sunrise;
 

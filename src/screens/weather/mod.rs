@@ -231,7 +231,7 @@ impl Screen for Weather {
             &mut sidebar,
             data,
             &self.location,
-            now.clone(),
+            &now,
         );
 
         // Border between daylight and location
@@ -259,7 +259,7 @@ impl Screen for Weather {
             0.3,
             0.5,
             &city_state,
-            "helvB14",
+            "helvB12",
             Color::Black,
         );
 
@@ -329,9 +329,7 @@ impl Weather {
             graphics,
             &rect,
             periods.iter().map(|p| {
-                let time =
-                    Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &p.start_time)
-                        .unwrap();
+                let time = &p.start_time;
                 if time.hour() % 6 == 0 {
                     let am_pm = if time.hour() < 12 { "a" } else { "p" };
                     format!("{}{}", time.strftime("%-I"), am_pm)
@@ -343,35 +341,24 @@ impl Weather {
         );
 
         // Day/Night and Sunrise/Sunset
-        let time_start = Zoned::strptime(
-            "%Y-%m-%dT%H:%M:%S%:Q",
-            &periods.first().unwrap().start_time,
-        )
-        .unwrap();
-        let time_end = Zoned::strptime(
-            "%Y-%m-%dT%H:%M:%S%:Q",
-            &periods.last().unwrap().start_time,
-        )
-        .unwrap();
-        let time_span = (time_end.clone() - time_start.clone())
-            .total(Unit::Second)
-            .unwrap();
+        let time_start = &periods.first().unwrap().start_time;
+        let time_end = &periods.last().unwrap().start_time;
+        let time_span = (time_end - time_start).total(Unit::Second).unwrap();
 
         let mut day = time_start.start_of_day().unwrap();
         let mut day_x = 0;
-        while day < time_end {
+        while &day < time_end {
             let sun = calculate_sun(
-                day.clone(),
+                &day,
                 location.latitude,
                 location.longitude,
                 data.forecast.properties.elevation.value as f64,
             );
 
             if time_start <= sun.sunrise {
-                let frac = (sun.sunrise.clone() - time_start.clone())
-                    .total(Unit::Second)
-                    .unwrap()
-                    / time_span;
+                let frac =
+                    (&sun.sunrise - time_start).total(Unit::Second).unwrap()
+                        / time_span;
                 let sunrise_x =
                     (frac.min(1.0) * rect.width as f64).round() as i32;
                 graphics.dither_rect(
@@ -385,7 +372,7 @@ impl Weather {
                     Color::Black,
                 );
 
-                if sun.sunrise <= time_end {
+                if &sun.sunrise <= time_end {
                     graphics.draw_rect(
                         inky,
                         &Rect {
@@ -409,17 +396,14 @@ impl Weather {
             }
 
             let end_of_day = day.end_of_day().unwrap();
-            let frac = (end_of_day.clone() - time_start.clone())
-                .total(Unit::Second)
-                .unwrap()
+            let frac = (&end_of_day - time_start).total(Unit::Second).unwrap()
                 / time_span;
             let eod_x = (frac.min(1.0) * rect.width as f64).round() as i32;
 
-            if sun.sunset <= time_end {
-                let frac = (sun.sunset.clone() - time_start.clone())
-                    .total(Unit::Second)
-                    .unwrap()
-                    / time_span;
+            if &sun.sunset <= time_end {
+                let frac =
+                    (&sun.sunset - time_start).total(Unit::Second).unwrap()
+                        / time_span;
                 let sunset_x =
                     (frac.max(0.0) * rect.width as f64).round() as i32;
 
@@ -457,7 +441,7 @@ impl Weather {
                 }
             }
 
-            if end_of_day <= time_end {
+            if &end_of_day <= time_end {
                 graphics.draw_rect(
                     inky,
                     &Rect {
@@ -471,10 +455,8 @@ impl Weather {
             }
 
             day = day.tomorrow().unwrap().start_of_day().unwrap();
-            let frac = (day.clone() - time_start.clone())
-                .total(Unit::Second)
-                .unwrap()
-                / time_span;
+            let frac =
+                (&day - time_start).total(Unit::Second).unwrap() / time_span;
             day_x = (frac.min(1.0) * rect.width as f64).round() as i32;
         }
 
@@ -520,12 +502,12 @@ impl Weather {
         sidebar: &mut Rect,
         data: &Data,
         location: &Location,
-        now: Zoned,
+        now: &Zoned,
     ) {
         let mut rect = sidebar.split_off_top(50);
 
         let sun = calculate_sun(
-            now.clone(),
+            now,
             location.latitude,
             location.longitude,
             data.forecast.properties.elevation.value as f64,
@@ -561,7 +543,7 @@ impl Weather {
         );
 
         let tomorrow_sun = calculate_sun(
-            now.tomorrow().unwrap(),
+            &now.tomorrow().unwrap(),
             location.latitude,
             location.longitude,
             data.forecast.properties.elevation.value as f64,
@@ -606,27 +588,26 @@ impl Weather {
     ) {
         let rect = sidebar.split_off_top(317);
 
-        let start_of_day = Zoned::strptime(
-            "%Y-%m-%dT%H:%M:%S%:Q",
-            &data.forecast.properties.periods[0].start_time,
-        )
-        .unwrap()
-        .start_of_day()
-        .unwrap();
+        let start_date = data.forecast.properties.periods[0].start_time.date();
 
         let first = data
             .forecast
             .properties
             .periods
             .iter()
-            .position(|p| {
-                Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &p.start_time)
-                    .unwrap()
-                    .start_of_day()
-                    .unwrap()
-                    != start_of_day
-            })
+            .position(|p| p.start_time.date() != start_date)
             .unwrap();
+
+        if first > 2 {
+            eprintln!(
+                "first period being summarized is the third or later period!"
+            );
+            eprintln!(
+                "this doesn't leave enough periods for the rest of the week!"
+            );
+            eprintln!("dumping forecast periods:");
+            eprintln!("{:?}", data.forecast.properties.periods);
+        }
 
         for (j, mut rect) in
             rect.divide_grid::<2, 3>().into_iter().flatten().enumerate()
@@ -654,9 +635,7 @@ impl Weather {
         mut rect: Rect,
         periods: &[api::ForecastPeriod],
     ) {
-        let time =
-            Zoned::strptime("%Y-%m-%dT%H:%M:%S%:Q", &periods[0].start_time)
-                .unwrap();
+        let time = &periods[0].start_time;
 
         let time_rect = rect.split_off_top(20);
         graphics.draw_text_in(
