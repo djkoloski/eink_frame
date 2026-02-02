@@ -7,9 +7,7 @@ use image::{
     imageops::{FilterType, dither},
 };
 use inky::{Color, Inky};
-use inky_graphics::{
-    Alignment, Graphics, InkyColorMap, Rect, SATURATED_PALETTE,
-};
+use inky_graphics::{Graphics, InkyColorMap, Rect, SATURATED_PALETTE};
 use jiff::{ToSpan, Unit, Zoned};
 use reqwest::Client;
 use serde::Deserialize;
@@ -27,7 +25,6 @@ struct PictureOfTheDayMetadata {
     copyright: Option<String>,
     #[expect(unused)]
     date: String,
-    #[expect(unused)]
     explanation: String,
     #[expect(unused)]
     hdurl: String,
@@ -116,7 +113,7 @@ impl Updater {
         }
         let image = reader.decode()?;
         let mut image = image
-            .resize_to_fill(800, 480, FilterType::Lanczos3)
+            .resize_to_fill(550, 480, FilterType::Lanczos3)
             .into_rgb8();
         dither(&mut image, &InkyColorMap(SATURATED_PALETTE));
 
@@ -138,7 +135,7 @@ impl Screen for Astronomy {
         Self { updater, receiver }
     }
 
-    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, rect: Rect) {
+    fn render(&mut self, inky: &mut Inky, graphics: &Graphics, mut rect: Rect) {
         let data = self.receiver.borrow_and_update();
         let picture_of_the_day = match data.as_ref() {
             Ok(data) => data,
@@ -156,42 +153,33 @@ impl Screen for Astronomy {
             }
         };
 
+        let mut sidebar = rect.split_off_right(250);
+        graphics.draw_rect(inky, &sidebar, Color::Black);
+
+        let title = sidebar.split_off_top(30);
+        graphics.draw_text_in(
+            inky,
+            title,
+            0.5,
+            0.5,
+            &picture_of_the_day.metadata.title,
+            "helvR10",
+            Color::White,
+        );
+        graphics.draw_multiline_text_in(
+            inky,
+            sidebar.shrink(10, 0, 10, 0),
+            &picture_of_the_day.metadata.explanation,
+            "helvR10",
+            Color::White,
+        );
+
         graphics.draw_image_in(
             inky,
             &rect,
             0.5,
             0.5,
             &picture_of_the_day.image,
-        );
-
-        const TITLE_SPACE: i32 = 4;
-        let title_width = graphics.calculate_text_width(
-            &picture_of_the_day.metadata.title,
-            "helvR08",
-        );
-        let x = inky.resolution_x() as i32 - title_width - 2 * TITLE_SPACE;
-        let y = inky.resolution_y() as i32 - 28 - 2 * TITLE_SPACE;
-        let width = title_width + 2 * TITLE_SPACE;
-        let height = 12 * 2 * TITLE_SPACE;
-        graphics.draw_rounded_rect(
-            inky,
-            &Rect {
-                x,
-                y,
-                width: width + 4,
-                height: height + 4,
-            },
-            4,
-            Color::Black,
-        );
-        graphics.draw_text(
-            inky,
-            x + TITLE_SPACE,
-            y + TITLE_SPACE + 9,
-            &picture_of_the_day.metadata.title,
-            Alignment::Left,
-            "helvR08",
-            Color::White,
         );
     }
 

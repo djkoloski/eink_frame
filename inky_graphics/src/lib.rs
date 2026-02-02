@@ -441,7 +441,7 @@ impl Graphics {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn draw_text_in(
         &self,
         inky: &mut Inky,
@@ -479,6 +479,68 @@ impl Graphics {
 
             x += character.advance_x as i32;
             y += character.advance_y as i32;
+        }
+    }
+
+    fn calculate_break_at(
+        &self,
+        font: &ArchivedFont,
+        width: i32,
+        text: &str,
+    ) -> usize {
+        let mut break_at = 0;
+        let mut x = 0;
+        for (i, c) in text.chars().enumerate() {
+            let character = font.get_character(c);
+
+            if c == ' ' {
+                break_at = i + 1;
+            } else if x + character.bm_width as i32 > width {
+                return break_at;
+            }
+
+            x += character.advance_x as i32;
+        }
+
+        text.len()
+    }
+
+    pub fn draw_multiline_text_in(
+        &self,
+        inky: &mut Inky,
+        rect: Rect,
+        text: &str,
+        font: &str,
+        color: Color,
+    ) {
+        let font = &self.resources.fonts[font];
+
+        let mut y = rect.y + font.baseline as i32;
+        let mut text_start = 0;
+        while text_start < text.len() {
+            let break_at =
+                self.calculate_break_at(font, rect.width, &text[text_start..]);
+
+            let mut x = rect.x;
+            for c in text[text_start..text_start + break_at].chars() {
+                let character = font.get_character(c);
+                let ox = x + character.bm_x as i32;
+                let oy = y - character.bm_y as i32;
+
+                for cy in 0..character.bm_height as usize {
+                    for cx in 0..character.bm_width as usize {
+                        if font.get_pixel(c, cx, cy) {
+                            inky.set(ox + cx as i32, oy - cy as i32, color);
+                        }
+                    }
+                }
+
+                x += character.advance_x as i32;
+                y += character.advance_y as i32;
+            }
+
+            text_start += break_at;
+            y += font.height as i32;
         }
     }
 
