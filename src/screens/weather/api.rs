@@ -56,7 +56,6 @@ pub struct ForecastPeriod {
     #[expect(unused)]
     #[serde(deserialize_with = "rfc_9557")]
     pub end_time: Zoned,
-    #[expect(unused)]
     pub is_daytime: bool,
     pub temperature: f32,
     pub probability_of_precipitation: ForecastUnit,

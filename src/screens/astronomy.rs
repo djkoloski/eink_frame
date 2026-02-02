@@ -154,7 +154,6 @@ impl Screen for Astronomy {
         };
 
         let mut sidebar = rect.split_off_right(250);
-        graphics.draw_rect(inky, &sidebar, Color::Black);
 
         let title = sidebar.split_off_top(30);
         graphics.draw_text_in(
@@ -163,15 +162,15 @@ impl Screen for Astronomy {
             0.5,
             0.5,
             &picture_of_the_day.metadata.title,
-            "helvR10",
-            Color::White,
+            "helvB10",
+            Color::Black,
         );
         graphics.draw_multiline_text_in(
             inky,
             sidebar.shrink(10, 0, 10, 0),
             &picture_of_the_day.metadata.explanation,
             "helvR10",
-            Color::White,
+            Color::Black,
         );
 
         graphics.draw_image_in(

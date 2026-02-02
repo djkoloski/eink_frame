@@ -181,14 +181,21 @@ impl Screen for Weather {
         // Today's date
         let mut date_rect = sidebar.split_off_top(60);
 
-        let date_weather_icon = date_rect.split_off_left(50);
+        let date_weather_icon = date_rect.split_off_left(48);
+        let date_weather_icon_color =
+            if data.forecast.properties.periods[0].is_daytime {
+                Color::Black
+            } else {
+                graphics.draw_rect(inky, &date_weather_icon, Color::Black);
+                Color::White
+            };
         graphics.draw_bitmap_in(
             inky,
             date_weather_icon,
             0.5,
             0.5,
             icon_to_bitmap(&data.forecast.properties.periods[0].icon),
-            Color::Black,
+            date_weather_icon_color,
         );
 
         let date_upper = date_rect.split_frac_off_top(0.55);
@@ -588,26 +595,14 @@ impl Weather {
     ) {
         let rect = sidebar.split_off_top(317);
 
-        let start_date = data.forecast.properties.periods[0].start_time.date();
-
-        let first = data
+        let first = 1 + data
             .forecast
             .properties
             .periods
             .iter()
-            .position(|p| p.start_time.date() != start_date)
+            .skip(1)
+            .position(|p| p.is_daytime)
             .unwrap();
-
-        if first > 2 {
-            eprintln!(
-                "first period being summarized is the third or later period!"
-            );
-            eprintln!(
-                "this doesn't leave enough periods for the rest of the week!"
-            );
-            eprintln!("dumping forecast periods:");
-            eprintln!("{:?}", data.forecast.properties.periods);
-        }
 
         for (j, mut rect) in
             rect.divide_grid::<2, 3>().into_iter().flatten().enumerate()
